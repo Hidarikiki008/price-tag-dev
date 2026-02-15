@@ -1,0 +1,2452 @@
+﻿<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, viewport-fit=cover">
+    <title>とけてる値札メーカー</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        :root {
+            --primary: #ff6b9d;
+            --primary-light: #ffb3c6;
+            --primary-dark: #e54a7b;
+            --bg: #fef6f8;
+            --card-bg: #ffffff;
+            --text: #333;
+            --text-light: #666;
+            --border: #ffd6e0;
+            --shadow: 0 4px 20px rgba(255, 107, 157, 0.15);
+            --radius: 16px;
+            --radius-sm: 10px;
+
+            /* カラーパレット */
+            --color-pink: #ffb3c6;
+            --color-mint: #a8e6cf;
+            --color-lavender: #d4b3ff;
+            --color-lemon: #fff59d;
+            --color-mono: #e0e0e0;
+            --color-simple: #ffffff;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html {
+            -webkit-text-size-adjust: 100%;
+            text-size-adjust: 100%;
+        }
+
+        body {
+            font-family: 'Segoe UI', 'Yu Gothic UI', 'Meiryo', sans-serif;
+            background: linear-gradient(135deg, var(--bg) 0%, #fff0f5 100%);
+            min-height: 100vh;
+            color: var(--text);
+            overflow-x: hidden;
+        }
+
+        /* ヘッダー */
+        .header {
+            background: linear-gradient(135deg, var(--primary) 0%, #ff8fab 100%);
+            color: white;
+            padding: 16px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 4px 20px rgba(255, 107, 157, 0.3);
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .logo-icon {
+            font-size: 1.8rem;
+        }
+
+        .export-btn {
+            background: white;
+            color: var(--primary);
+            border: none;
+            padding: 14px 32px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            border-radius: 50px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .export-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 25px rgba(0, 0, 0, 0.15);
+        }
+
+        .export-btn:active {
+            transform: translateY(0);
+        }
+
+        /* メインコンテナ */
+        .main {
+            display: grid;
+            grid-template-columns: 360px 1fr;
+            gap: 24px;
+            padding: 24px;
+            max-width: 1600px;
+            margin: 0 auto;
+            min-height: calc(100vh - 80px);
+        }
+
+        /* 設定パネル */
+        .settings {
+            background: var(--card-bg);
+            border-radius: var(--radius);
+            padding: 24px;
+            box-shadow: var(--shadow);
+            overflow-y: auto;
+            max-height: calc(100vh - 128px);
+        }
+
+        .settings h2 {
+            font-size: 1rem;
+            color: var(--primary);
+            margin-bottom: 16px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text);
+            margin-bottom: 8px;
+        }
+
+        .form-group input[type="text"],
+        .form-group input[type="number"] {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid var(--border);
+            border-radius: var(--radius-sm);
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px rgba(255, 107, 157, 0.1);
+        }
+
+        .price-input {
+            font-size: 1.5rem !important;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        /* ボタングループ */
+        .btn-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .btn-option {
+            padding: 10px 16px;
+            border: 2px solid var(--border);
+            background: white;
+            border-radius: 50px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.2s ease;
+            font-weight: 500;
+        }
+
+        .btn-option:hover {
+            border-color: var(--primary-light);
+            background: #fff5f8;
+        }
+
+        .btn-option.active {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: white;
+        }
+
+        /* カラースウォッチ */
+        .color-swatches {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .color-swatch {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            cursor: pointer;
+            border: 3px solid transparent;
+            transition: all 0.2s ease;
+            position: relative;
+        }
+
+        .color-swatch:hover {
+            transform: scale(1.1);
+        }
+
+        .color-swatch.active {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(255, 107, 157, 0.3);
+        }
+
+        .color-swatch.active::after {
+            content: '✓';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-weight: bold;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+        }
+
+        /* サイズプリセット */
+        .size-presets {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+        }
+
+        .size-preset {
+            padding: 10px 8px;
+            text-align: center;
+            border: 2px solid var(--border);
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            background: white;
+        }
+
+        .size-preset:hover {
+            border-color: var(--primary-light);
+            background: #fff5f8;
+        }
+
+        .size-preset.active {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: white;
+        }
+
+        .size-preset .size-name {
+            font-weight: bold;
+            font-size: 0.9rem;
+        }
+
+        .size-preset .size-dim {
+            font-size: 0.75rem;
+            opacity: 0.8;
+            margin-top: 2px;
+        }
+
+        /* カスタムサイズ入力 */
+        .custom-size {
+            display: none;
+            gap: 8px;
+            align-items: center;
+            margin-top: 10px;
+        }
+
+        .custom-size.visible {
+            display: flex;
+        }
+
+        .custom-size input {
+            width: 70px;
+            padding: 8px;
+            text-align: center;
+            border: 2px solid var(--border);
+            border-radius: var(--radius-sm);
+        }
+
+        /* チェックボックス */
+        .checkbox-group {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+        }
+
+        .checkbox-item input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            accent-color: var(--primary);
+        }
+
+        /* テンプレート選択 */
+        .template-options {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+        }
+
+        .template-option {
+            padding: 16px 8px;
+            text-align: center;
+            border: 2px solid var(--border);
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            background: white;
+        }
+
+        .template-option:hover {
+            border-color: var(--primary-light);
+        }
+
+        .template-option.active {
+            border-color: var(--primary);
+            background: #fff5f8;
+        }
+
+        .template-option .template-icon {
+            font-size: 1.5rem;
+            margin-bottom: 4px;
+        }
+
+        .template-option .template-name {
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+
+        /* リセットボタン */
+        .reset-btn {
+            width: 100%;
+            padding: 12px;
+            background: #f5f5f5;
+            border: 2px solid #ddd;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            font-size: 0.9rem;
+            color: var(--text-light);
+            transition: all 0.2s ease;
+            margin-top: 16px;
+        }
+
+        .reset-btn:hover {
+            background: #eee;
+            border-color: #ccc;
+        }
+
+        /* プレビューエリア */
+        .preview-area {
+            background: var(--card-bg);
+            border-radius: var(--radius);
+            padding: 24px;
+            box-shadow: var(--shadow);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .preview-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .preview-header h2 {
+            font-size: 1rem;
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .preview-options {
+            display: flex;
+            gap: 16px;
+        }
+
+        .preview-container {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #f8f8f8;
+            border-radius: var(--radius-sm);
+            padding: 20px;
+            overflow: auto;
+        }
+
+        .preview-paper {
+            background: white;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            position: relative;
+        }
+
+        /* 用紙サイズセレクト */
+        .paper-select {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .paper-select select {
+            padding: 8px 12px;
+            border: 2px solid var(--border);
+            border-radius: var(--radius-sm);
+            font-size: 0.9rem;
+            cursor: pointer;
+        }
+
+        /* アイコン配置 */
+        .icon-placement {
+            display: flex;
+            gap: 8px;
+        }
+
+        /* 自由入力フィールド */
+        .free-input {
+            display: none;
+            margin-top: 8px;
+        }
+
+        .free-input.visible {
+            display: block;
+        }
+
+        .free-input input {
+            width: 100%;
+            padding: 10px 14px;
+            border: 2px solid var(--border);
+            border-radius: var(--radius-sm);
+            font-size: 0.95rem;
+        }
+
+        /* エラーメッセージ */
+        .error-msg {
+            color: #e53935;
+            font-size: 0.85rem;
+            margin-top: 4px;
+            display: none;
+        }
+
+        .error-msg.visible {
+            display: block;
+        }
+
+        /* 表示モード */
+        .display-modes {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+        }
+
+        /* 用紙向き */
+        .orientation-btns {
+            display: flex;
+            gap: 8px;
+        }
+
+        .orientation-btn {
+            flex: 1;
+            padding: 10px;
+            text-align: center;
+            border: 2px solid var(--border);
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            background: white;
+            transition: all 0.2s ease;
+        }
+
+        .orientation-btn.active {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: white;
+        }
+
+        /* セクション区切り */
+        .section-divider {
+            height: 1px;
+            background: var(--border);
+            margin: 20px 0;
+        }
+
+        /* 拡大プレビュー */
+        .zoom-preview {
+            background: linear-gradient(135deg, #f8f8f8 0%, #fff 100%);
+            border: 3px solid var(--primary-light);
+            border-radius: var(--radius);
+            padding: 24px;
+            margin-bottom: 16px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .zoom-preview-title {
+            font-size: 0.9rem;
+            color: var(--primary);
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .zoom-tag {
+            transform-origin: center;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+        }
+
+        /* 間隔選択 */
+        .gap-presets {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .gap-preset {
+            padding: 8px 14px;
+            border: 2px solid var(--border);
+            border-radius: 50px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            background: white;
+            transition: all 0.2s ease;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-width: 50px;
+        }
+
+        .gap-preset:hover {
+            border-color: var(--primary-light);
+            background: #fff5f8;
+        }
+
+        .gap-preset.active {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: white;
+        }
+
+        .gap-preset .gap-value {
+            font-weight: bold;
+            font-size: 0.9rem;
+        }
+
+        .gap-preset .gap-label {
+            font-size: 0.7rem;
+            opacity: 0.8;
+        }
+
+        /* レスポンシブ */
+        @media (max-width: 900px) {
+            .main {
+                grid-template-columns: 1fr;
+            }
+
+            .settings {
+                max-height: none;
+            }
+        }
+
+        @media (max-width: 600px) {
+            .header {
+                padding: 12px 14px;
+                gap: 10px;
+            }
+
+            .logo {
+                font-size: 1.05rem;
+                gap: 6px;
+            }
+
+            .logo-icon {
+                font-size: 1.2rem;
+            }
+
+            .export-btn {
+                padding: 10px 14px;
+                font-size: 1rem;
+                line-height: 1.2;
+                flex-shrink: 0;
+            }
+
+            .main {
+                padding: 12px;
+                gap: 12px;
+            }
+
+            .settings,
+            .preview-area {
+                padding: 14px;
+            }
+
+            .preview-container {
+                padding: 12px;
+            }
+
+            input,
+            select,
+            textarea,
+            button {
+                font-size: 16px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- ヘッダー -->
+    <header class="header">
+        <div class="logo">
+            <span class="logo-icon">🏷️</span>
+            <span>とけてる値札メーカー</span>
+        </div>
+        <button class="export-btn" onclick="exportPDF()">
+            <span>📄</span>
+            <span>PDF書き出し</span>
+        </button>
+    </header>
+
+    <!-- メインコンテンツ -->
+    <main class="main">
+        <!-- 左：設定パネル -->
+        <aside class="settings">
+            <!-- 価格入力 -->
+            <h2>💰 価格設定</h2>
+            <div class="form-group">
+                <label for="price">価格（必須）</label>
+                <input type="text" id="price" class="price-input" placeholder="100" inputmode="numeric">
+                <div class="error-msg" id="priceError">価格を入れてね</div>
+            </div>
+
+            <div class="form-group">
+                <label>通貨</label>
+                <div class="btn-group" id="currencyButtons">
+                    <button class="btn-option active" data-currency="円" data-position="after">円</button>
+                    <button class="btn-option" data-currency="¥" data-position="before">¥</button>
+                    <button class="btn-option" data-currency="￥" data-position="before">￥</button>
+                    <button class="btn-option" data-currency="yen" data-position="after">yen</button>
+                    <button class="btn-option" data-currency="JPY" data-position="before">JPY</button>
+                    <button class="btn-option" data-currency="" data-position="none">なし</button>
+                    <button class="btn-option" data-currency="free" data-position="after">自由</button>
+                </div>
+                <div class="free-input" id="freeCurrencyInput">
+                    <input type="text" id="freeCurrency" placeholder="例: yan">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="originalPrice">💰 値引き表示（元値）</label>
+                <input type="text" id="originalPrice" placeholder="例: 200（取り消し線が付きます）">
+                <small style="color: #999; font-size: 0.8rem;">入力すると「<del>200円</del> → 100円」のように表示</small>
+            </div>
+
+            <div class="form-group">
+                <label>🧾 税表示</label>
+                <div class="btn-group" id="taxDisplay">
+                    <button class="btn-option active" data-tax="none">なし</button>
+                    <button class="btn-option" data-tax="included">税込</button>
+                    <button class="btn-option" data-tax="excluded">+税</button>
+                </div>
+            </div>
+
+            <div class="section-divider"></div>
+
+            <!-- 商品情報 -->
+            <h2>📝 商品情報</h2>
+            <div class="form-group">
+                <label for="itemName">商品名（任意）</label>
+                <input type="text" id="itemName" placeholder="例: 手作りクッキー">
+            </div>
+
+            <div class="form-group">
+                <label for="note">補足（任意）</label>
+                <input type="text" id="note" placeholder="例: SALE, 限定">
+            </div>
+
+            <div class="form-group">
+                <label>表示モード</label>
+                <div class="display-modes" id="displayModes">
+                    <button class="btn-option active" data-mode="price">価格だけ</button>
+                    <button class="btn-option" data-mode="name">商品名だけ</button>
+                    <button class="btn-option" data-mode="price-name">価格+商品名</button>
+                    <button class="btn-option" data-mode="price-note">価格+補足</button>
+                    <button class="btn-option" data-mode="name-note">商品名+補足</button>
+                    <button class="btn-option" data-mode="all">全部</button>
+                </div>
+            </div>
+
+            <div class="section-divider"></div>
+
+            <!-- アイコン設定 -->
+            <h2>✨ アイコン</h2>
+            <div class="form-group">
+                <label for="icon">アイコン文字</label>
+                <input type="text" id="icon" placeholder="例: 🐱 ❤ ★">
+            </div>
+
+            <div class="form-group">
+                <label>配置</label>
+                <div class="btn-group icon-placement" id="iconPlacement">
+                    <button class="btn-option active" data-placement="none">なし</button>
+                    <button class="btn-option" data-placement="left">左</button>
+                    <button class="btn-option" data-placement="right">右</button>
+                    <button class="btn-option" data-placement="both">両側</button>
+                </div>
+            </div>
+
+            <div class="section-divider"></div>
+
+            <!-- サイズ・用紙 -->
+            <h2>📐 サイズ・用紙</h2>
+            <div class="form-group">
+                <label>値札サイズ</label>
+                <div class="size-presets" id="sizePresets">
+                    <div class="size-preset" data-size="xs" data-w="20" data-h="7">
+                        <div class="size-name">XS</div>
+                        <div class="size-dim">20×7</div>
+                    </div>
+                    <div class="size-preset" data-size="s" data-w="30" data-h="10">
+                        <div class="size-name">S</div>
+                        <div class="size-dim">30×10</div>
+                    </div>
+                    <div class="size-preset active" data-size="m" data-w="40" data-h="15">
+                        <div class="size-name">M</div>
+                        <div class="size-dim">40×15</div>
+                    </div>
+                    <div class="size-preset" data-size="l" data-w="50" data-h="20">
+                        <div class="size-name">L</div>
+                        <div class="size-dim">50×20</div>
+                    </div>
+                    <div class="size-preset" data-size="xl" data-w="60" data-h="25">
+                        <div class="size-name">XL</div>
+                        <div class="size-dim">60×25</div>
+                    </div>
+                    <div class="size-preset" data-size="custom">
+                        <div class="size-name">カスタム</div>
+                        <div class="size-dim">自由</div>
+                    </div>
+                </div>
+                <div class="custom-size" id="customSize">
+                    <input type="number" id="customWidth" placeholder="幅" min="10">
+                    <span>×</span>
+                    <input type="number" id="customHeight" placeholder="高" min="5">
+                    <span>mm</span>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>用紙</label>
+                <div class="btn-group" id="paperButtons">
+                    <button class="btn-option active" data-paper="a4" data-w="210" data-h="297">A4</button>
+                    <button class="btn-option" data-paper="a5" data-w="148" data-h="210">A5</button>
+                    <button class="btn-option" data-paper="b5" data-w="182" data-h="257">B5</button>
+                    <button class="btn-option" data-paper="letter" data-w="216" data-h="279">レター</button>
+                    <button class="btn-option" data-paper="custom">カスタム</button>
+                </div>
+                <div class="custom-size" id="customPaper">
+                    <input type="number" id="customPaperWidth" placeholder="幅" min="50">
+                    <span>×</span>
+                    <input type="number" id="customPaperHeight" placeholder="高" min="50">
+                    <span>mm</span>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>向き</label>
+                <div class="orientation-btns" id="orientationBtns">
+                    <button class="orientation-btn active" data-orientation="portrait">📄 縦</button>
+                    <button class="orientation-btn" data-orientation="landscape">📄 横</button>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>✂️ 値札の間隔（カットしやすさ）</label>
+                <div class="gap-presets" id="gapPresets">
+                    <div class="gap-preset" data-gap="0">
+                        <div class="gap-value">0</div>
+                        <div class="gap-label">ピッタリ</div>
+                    </div>
+                    <div class="gap-preset active" data-gap="2">
+                        <div class="gap-value">2</div>
+                        <div class="gap-label">標準</div>
+                    </div>
+                    <div class="gap-preset" data-gap="4">
+                        <div class="gap-value">4</div>
+                        <div class="gap-label">ゆったり</div>
+                    </div>
+                    <div class="gap-preset" data-gap="6">
+                        <div class="gap-value">6</div>
+                        <div class="gap-label">楽々</div>
+                    </div>
+                    <div class="gap-preset" data-gap="10">
+                        <div class="gap-value">10</div>
+                        <div class="gap-label">超楽</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section-divider"></div>
+
+            <!-- デザイン -->
+            <h2>🎨 デザイン</h2>
+            <div class="form-group">
+                <label>カラー</label>
+                <div class="color-swatches" id="colorSwatches">
+                    <div class="color-swatch active" data-color="pink" style="background: var(--color-pink);"
+                        title="とけピンク"></div>
+                    <div class="color-swatch" data-color="mint" style="background: var(--color-mint);" title="ミント">
+                    </div>
+                    <div class="color-swatch" data-color="lavender" style="background: var(--color-lavender);"
+                        title="ラベンダー"></div>
+                    <div class="color-swatch" data-color="lemon" style="background: var(--color-lemon);" title="レモン">
+                    </div>
+                    <div class="color-swatch" data-color="mono" style="background: var(--color-mono);" title="モノクロ">
+                    </div>
+                    <div class="color-swatch" data-color="simple"
+                        style="background: var(--color-simple); border: 2px solid #ddd;" title="シンプル"></div>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>テンプレート</label>
+                <div class="template-options" id="templateOptions">
+                    <div class="template-option active" data-template="point">
+                        <div class="template-icon">⭐</div>
+                        <div class="template-name">ワンポイント</div>
+                    </div>
+                    <div class="template-option" data-template="band">
+                        <div class="template-icon">🌊</div>
+                        <div class="template-name">下部帯</div>
+                    </div>
+                    <div class="template-option" data-template="simple">
+                        <div class="template-icon">◻️</div>
+                        <div class="template-name">シンプル</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>🔮 角丸</label>
+                <div class="btn-group" id="cornerRadius">
+                    <button class="btn-option active" data-radius="none">鋭角</button>
+                    <button class="btn-option" data-radius="soft">やさしい</button>
+                    <button class="btn-option" data-radius="round">まんまる</button>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="checkbox-item" style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                    <input type="checkbox" id="useGradient">
+                    <span>✨ グラデーション背景</span>
+                </label>
+            </div>
+
+            <div class="form-group">
+                <label>🎄 季節テンプレート</label>
+                <div class="btn-group" id="seasonTheme" style="flex-wrap: wrap;">
+                    <button class="btn-option active" data-season="none">なし</button>
+                    <button class="btn-option" data-season="spring">🌸春</button>
+                    <button class="btn-option" data-season="summer">🌻夏</button>
+                    <button class="btn-option" data-season="autumn">🍁秋</button>
+                    <button class="btn-option" data-season="winter">❄️冬</button>
+                    <button class="btn-option" data-season="christmas">🎄クリスマス</button>
+                    <button class="btn-option" data-season="valentine">💝バレンタイン</button>
+                    <button class="btn-option" data-season="halloween">🎃ハロウィン</button>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>🎨 背景パターン</label>
+                <div class="btn-group" id="bgPattern">
+                    <button class="btn-option active" data-pattern="none">なし</button>
+                    <button class="btn-option" data-pattern="dots">水玉</button>
+                    <button class="btn-option" data-pattern="stripes">ストライプ</button>
+                    <button class="btn-option" data-pattern="check">チェック</button>
+                </div>
+            </div>
+
+            <div class="section-divider"></div>
+
+            <!-- オプション -->
+            <h2>⚙️ オプション</h2>
+            <div class="form-group">
+                <div class="checkbox-group">
+                    <label class="checkbox-item">
+                        <input type="checkbox" id="cutLine" checked>
+                        <span>切り線</span>
+                    </label>
+                    <label class="checkbox-item">
+                        <input type="checkbox" id="cropMark">
+                        <span>トンボ</span>
+                    </label>
+                    <label class="checkbox-item">
+                        <input type="checkbox" id="testScale">
+                        <span>1cmスケール</span>
+                    </label>
+                </div>
+            </div>
+
+            <button class="reset-btn" onclick="resetSettings()">🔄 設定をリセット</button>
+        </aside>
+
+        <!-- 右：プレビュー -->
+        <section class="preview-area">
+            <div class="preview-header">
+                <h2>👀 プレビュー</h2>
+                <div class="preview-options">
+                    <span id="tagCount">0枚</span>
+                </div>
+            </div>
+
+            <!-- 拡大プレビュー（老眼対応） -->
+            <div class="zoom-preview">
+                <div class="zoom-preview-title">🔍 今こうなってるよ！（実物大×3倍）</div>
+                <canvas id="zoomCanvas" class="zoom-tag"></canvas>
+            </div>
+
+            <div class="preview-container">
+                <canvas id="previewCanvas" class="preview-paper"></canvas>
+            </div>
+        </section>
+    </main>
+
+    <script>
+function _typeof(o) { "@babel/helpers - typeof"; return _typeof = "function" == typeof Symbol && "symbol" == typeof Symbol.iterator ? function (o) { return typeof o; } : function (o) { return o && "function" == typeof Symbol && o.constructor === Symbol && o !== Symbol.prototype ? "symbol" : typeof o; }, _typeof(o); }
+function _slicedToArray(r, e) { return _arrayWithHoles(r) || _iterableToArrayLimit(r, e) || _unsupportedIterableToArray(r, e) || _nonIterableRest(); }
+function _nonIterableRest() { throw new TypeError("Invalid attempt to destructure non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method."); }
+function _unsupportedIterableToArray(r, a) { if (r) { if ("string" == typeof r) return _arrayLikeToArray(r, a); var t = {}.toString.call(r).slice(8, -1); return "Object" === t && r.constructor && (t = r.constructor.name), "Map" === t || "Set" === t ? Array.from(r) : "Arguments" === t || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(t) ? _arrayLikeToArray(r, a) : void 0; } }
+function _arrayLikeToArray(r, a) { (null == a || a > r.length) && (a = r.length); for (var e = 0, n = Array(a); e < a; e++) n[e] = r[e]; return n; }
+function _iterableToArrayLimit(r, l) { var t = null == r ? null : "undefined" != typeof Symbol && r[Symbol.iterator] || r["@@iterator"]; if (null != t) { var e, n, i, u, a = [], f = !0, o = !1; try { if (i = (t = t.call(r)).next, 0 === l) { if (Object(t) !== t) return; f = !1; } else for (; !(f = (e = i.call(t)).done) && (a.push(e.value), a.length !== l); f = !0); } catch (r) { o = !0, n = r; } finally { try { if (!f && null != t.return && (u = t.return(), Object(u) !== u)) return; } finally { if (o) throw n; } } return a; } }
+function _arrayWithHoles(r) { if (Array.isArray(r)) return r; }
+function ownKeys(e, r) { var t = Object.keys(e); if (Object.getOwnPropertySymbols) { var o = Object.getOwnPropertySymbols(e); r && (o = o.filter(function (r) { return Object.getOwnPropertyDescriptor(e, r).enumerable; })), t.push.apply(t, o); } return t; }
+function _objectSpread(e) { for (var r = 1; r < arguments.length; r++) { var t = null != arguments[r] ? arguments[r] : {}; r % 2 ? ownKeys(Object(t), !0).forEach(function (r) { _defineProperty(e, r, t[r]); }) : Object.getOwnPropertyDescriptors ? Object.defineProperties(e, Object.getOwnPropertyDescriptors(t)) : ownKeys(Object(t)).forEach(function (r) { Object.defineProperty(e, r, Object.getOwnPropertyDescriptor(t, r)); }); } return e; }
+function _defineProperty(e, r, t) { return (r = _toPropertyKey(r)) in e ? Object.defineProperty(e, r, { value: t, enumerable: !0, configurable: !0, writable: !0 }) : e[r] = t, e; }
+function _toPropertyKey(t) { var i = _toPrimitive(t, "string"); return "symbol" == _typeof(i) ? i : i + ""; }
+function _toPrimitive(t, r) { if ("object" != _typeof(t) || !t) return t; var e = t[Symbol.toPrimitive]; if (void 0 !== e) { var i = e.call(t, r || "default"); if ("object" != _typeof(i)) return i; throw new TypeError("@@toPrimitive must return a primitive value."); } return ("string" === r ? String : Number)(t); }
+// ========================================
+// 設定データ
+// ========================================
+var CONFIG = {
+  // 入力値
+  price: '',
+  originalPrice: '',
+  // 値引き用の元値
+  currency: '円',
+  currencyPosition: 'after',
+  freeCurrency: '',
+  itemName: '',
+  note: '',
+  displayMode: 'price',
+  icon: '',
+  iconPlacement: 'none',
+  // 税表示
+  taxDisplay: 'none',
+  // none, included, excluded
+
+  // サイズ (mm)
+  tagSize: 'm',
+  tagWidth: 40,
+  tagHeight: 15,
+  // 用紙 (mm)
+  paper: 'a4',
+  paperWidth: 210,
+  paperHeight: 297,
+  orientation: 'portrait',
+  // デザイン
+  color: 'pink',
+  template: 'point',
+  cornerRadius: 'none',
+  // none, soft, round
+  bgPattern: 'none',
+  // none, dots, stripes, check
+  useGradient: false,
+  seasonTheme: 'none',
+  // none, spring, summer, autumn, winter, christmas, valentine, halloween
+
+  // オプション
+  cutLine: true,
+  cropMark: false,
+  testScale: false,
+  // レイアウト定数 (mm)
+  margin: 8,
+  gap: 2
+};
+
+// カラーマップ
+var COLORS = {
+  pink: {
+    bg: '#ffb3c6',
+    bg2: '#ffe0eb',
+    border: '#ff6b9d',
+    text: '#333'
+  },
+  mint: {
+    bg: '#a8e6cf',
+    bg2: '#d4f5e5',
+    border: '#56c596',
+    text: '#333'
+  },
+  lavender: {
+    bg: '#d4b3ff',
+    bg2: '#ece0ff',
+    border: '#a366ff',
+    text: '#333'
+  },
+  lemon: {
+    bg: '#fff59d',
+    bg2: '#fffde0',
+    border: '#ffeb3b',
+    text: '#333'
+  },
+  mono: {
+    bg: '#e0e0e0',
+    bg2: '#f5f5f5',
+    border: '#9e9e9e',
+    text: '#333'
+  },
+  simple: {
+    bg: '#ffffff',
+    bg2: '#f8f8f8',
+    border: '#333',
+    text: '#333'
+  }
+};
+
+// 季節テーマ
+var SEASON_THEMES = {
+  none: {
+    emoji: '',
+    colors: null
+  },
+  spring: {
+    emoji: '🌸',
+    colors: {
+      bg: '#ffd9e8',
+      bg2: '#fff0f5',
+      border: '#ff69b4'
+    }
+  },
+  summer: {
+    emoji: '🌻',
+    colors: {
+      bg: '#87ceeb',
+      bg2: '#e0f7ff',
+      border: '#00bfff'
+    }
+  },
+  autumn: {
+    emoji: '🍁',
+    colors: {
+      bg: '#ffcc80',
+      bg2: '#fff3e0',
+      border: '#ff9800'
+    }
+  },
+  winter: {
+    emoji: '❄️',
+    colors: {
+      bg: '#b3e5fc',
+      bg2: '#e1f5fe',
+      border: '#03a9f4'
+    }
+  },
+  christmas: {
+    emoji: '🎄',
+    colors: {
+      bg: '#c8e6c9',
+      bg2: '#ffcdd2',
+      border: '#4caf50'
+    }
+  },
+  valentine: {
+    emoji: '💝',
+    colors: {
+      bg: '#f8bbd9',
+      bg2: '#fce4ec',
+      border: '#e91e63'
+    }
+  },
+  halloween: {
+    emoji: '🎃',
+    colors: {
+      bg: '#ffcc80',
+      bg2: '#fff3e0',
+      border: '#ff5722'
+    }
+  }
+};
+function isLegacyIOSDevice() {
+  var ua = navigator.userAgent || '';
+  var isIOS = /iPad|iPhone|iPod/i.test(ua);
+  if (!isIOS) return false;
+  var match = ua.match(/OS (\d+)_/);
+  var major = match ? parseInt(match[1], 10) : 99;
+  return major <= 10;
+}
+function isIOSDevice() {
+  var ua = navigator.userAgent || '';
+  return /iPad|iPhone|iPod/i.test(ua);
+}
+var IS_IOS_DEVICE = isIOSDevice();
+var LEGACY_MODE = isLegacyIOSDevice();
+var PERFORMANCE = {
+  previewScale: LEGACY_MODE ? 1.2 : 2,
+  displayScale: LEGACY_MODE ? 1.1 : 1.5,
+  zoomScale: LEGACY_MODE ? 2 : 3,
+  zoomRenderScale: LEGACY_MODE ? 2 : 4,
+  pdfDpi: LEGACY_MODE ? 110 : 300,
+  imageQuality: LEGACY_MODE ? 0.82 : 0.95
+};
+var schedulePreviewFrame = window.requestAnimationFrame ? window.requestAnimationFrame.bind(window) : function (callback) {
+  return setTimeout(callback, 16);
+};
+var previewRenderQueued = false;
+var settingsSaveTimer = null;
+
+// iOS9 Safari compatibility polyfills
+if (typeof Object.assign !== 'function') {
+  Object.assign = function (target) {
+    if (target == null) {
+      throw new TypeError('Cannot convert undefined or null to object');
+    }
+    var to = Object(target);
+    for (var index = 1; index < arguments.length; index++) {
+      var source = arguments[index];
+      if (source != null) {
+        for (var key in source) {
+          if (Object.prototype.hasOwnProperty.call(source, key)) {
+            to[key] = source[key];
+          }
+        }
+      }
+    }
+    return to;
+  };
+}
+if (window.NodeList && !NodeList.prototype.forEach) {
+  NodeList.prototype.forEach = Array.prototype.forEach;
+}
+if (!String.prototype.includes) {
+  String.prototype.includes = function (search, start) {
+    if (typeof start !== 'number') start = 0;
+    if (start + search.length > this.length) return false;
+    return this.indexOf(search, start) !== -1;
+  };
+}
+function normalizeNumericInput(raw) {
+  return String(raw || '').replace(/[０-９]/g, function (s) {
+    return String.fromCharCode(s.charCodeAt(0) - 0xFEE0);
+  }).replace(/[^0-9]/g, '');
+}
+function applyNumericInputValue(inputEl, nextValue) {
+  if (!inputEl || inputEl.value === nextValue) return;
+  var prevEnd = inputEl.selectionEnd == null ? inputEl.value.length : inputEl.selectionEnd;
+  inputEl.value = nextValue;
+  if (document.activeElement === inputEl && typeof inputEl.setSelectionRange === 'function') {
+    var pos = Math.min(nextValue.length, prevEnd);
+    inputEl.setSelectionRange(pos, pos);
+  }
+}
+var EMOJI_FONT_FAMILY = 'Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, sans-serif';
+var EMOJI_SPRITE_CACHE = {};
+function pickFirstDisplayGlyph(raw) {
+  var text = String(raw || '').trim();
+  if (!text) return '';
+  // スペース区切りで最初のトークンのみ使う（複数語入力対策）
+  var firstSpace = text.search(/\s/);
+  if (firstSpace > 0) {
+    text = text.slice(0, firstSpace);
+  }
+
+  // 絵文字シーケンスを壊さないように、先頭側を十分な長さで保持する
+  // （例: ZWJ/異体字セレクタ付き）
+  if (text.length > 8) {
+    return text.slice(0, 8);
+  }
+  return text;
+}
+function getSeasonThemeSymbol(themeEmoji) {
+  var symbol = pickFirstDisplayGlyph(themeEmoji);
+  if (!symbol) return '';
+  return symbol;
+}
+function getIconSlotCount(iconGlyph) {
+  if (!iconGlyph || CONFIG.iconPlacement === 'none') return 0;
+  return CONFIG.iconPlacement === 'both' ? 2 : 1;
+}
+function clampNumber(value, min, max) {
+  return Math.min(Math.max(value, min), max);
+}
+function getEmojiSpriteCanvas(emoji) {
+  var key = String(emoji || '');
+  if (!key) return null;
+  if (EMOJI_SPRITE_CACHE[key]) return EMOJI_SPRITE_CACHE[key];
+  var size = 96;
+  var sprite = document.createElement('canvas');
+  sprite.width = size;
+  sprite.height = size;
+  var sctx = sprite.getContext('2d');
+  if (!sctx) return null;
+  sctx.font = "84px ".concat(EMOJI_FONT_FAMILY);
+  sctx.textAlign = 'center';
+  sctx.textBaseline = 'middle';
+  sctx.fillText(key, size / 2, size / 2 + 3);
+  var info = {
+    canvas: sprite,
+    sx: 0,
+    sy: 0,
+    sw: size,
+    sh: size,
+    usable: false
+  };
+  try {
+    var img = sctx.getImageData(0, 0, size, size);
+    var data = img.data;
+    var minX = size;
+    var minY = size;
+    var maxX = -1;
+    var maxY = -1;
+    for (var y = 0; y < size; y++) {
+      for (var x = 0; x < size; x++) {
+        var a = data[(y * size + x) * 4 + 3];
+        if (a > 8) {
+          if (x < minX) minX = x;
+          if (y < minY) minY = y;
+          if (x > maxX) maxX = x;
+          if (y > maxY) maxY = y;
+        }
+      }
+    }
+    if (maxX >= minX && maxY >= minY) {
+      var pad = 2;
+      info.sx = Math.max(0, minX - pad);
+      info.sy = Math.max(0, minY - pad);
+      info.sw = Math.min(size - info.sx, maxX - minX + 1 + pad * 2);
+      info.sh = Math.min(size - info.sy, maxY - minY + 1 + pad * 2);
+      info.usable = info.sw > 0 && info.sh > 0;
+    }
+  } catch (e) {}
+  EMOJI_SPRITE_CACHE[key] = info;
+  return info;
+}
+function drawEmojiGlyph(ctx, emoji, centerX, centerY, size, alpha) {
+  if (!emoji || !size) return;
+  ctx.save();
+  if (typeof alpha === 'number') {
+    ctx.globalAlpha = ctx.globalAlpha * alpha;
+  }
+  if (LEGACY_MODE) {
+    var spriteInfo = getEmojiSpriteCanvas(emoji);
+    if (spriteInfo && spriteInfo.usable) {
+      ctx.drawImage(spriteInfo.canvas, spriteInfo.sx, spriteInfo.sy, spriteInfo.sw, spriteInfo.sh, centerX - size / 2, centerY - size / 2, size, size);
+      ctx.restore();
+      return;
+    }
+  }
+  ctx.font = "".concat(size, "px ").concat(EMOJI_FONT_FAMILY);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(emoji, centerX, centerY + size * 0.06);
+  ctx.restore();
+}
+function estimateIconFontSize(mainFontSize, tagHeightPx) {
+  var preferred = Math.max(mainFontSize * (LEGACY_MODE ? 1.4 : 1.18), tagHeightPx * (LEGACY_MODE ? 0.48 : 0.42));
+  var minSize = tagHeightPx * 0.4;
+  var maxSize = tagHeightPx * (LEGACY_MODE ? 0.86 : 0.75);
+  return clampNumber(preferred, minSize, maxSize);
+}
+function estimateIconGap(mainFontSize, tagHeightPx) {
+  return clampNumber(mainFontSize * 0.12, tagHeightPx * 0.03, tagHeightPx * 0.1);
+}
+function drawMainTextWithIcons(ctx, mainText, centerX, centerY, mainFontSize, scale, color, iconGlyph, tagHeightPx, contentMaxWidth) {
+  var placement = CONFIG.iconPlacement;
+  var hasIcon = iconGlyph && placement !== 'none';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = color;
+  ctx.font = "bold ".concat(mainFontSize, "px sans-serif");
+  if (!hasIcon) {
+    ctx.fillText(mainText, centerX, centerY);
+    return;
+  }
+  var iconFontSize = estimateIconFontSize(mainFontSize, tagHeightPx);
+  var iconGap = estimateIconGap(mainFontSize, tagHeightPx);
+  var textWidth = ctx.measureText(mainText).width;
+  ctx.font = "".concat(iconFontSize, "px ").concat(EMOJI_FONT_FAMILY);
+  var rawIconWidth = ctx.measureText(iconGlyph).width;
+  var iconWidth = Math.min(iconFontSize * 1.2, Math.max(iconFontSize * 0.7, rawIconWidth));
+  var totalWidth = placement === 'both' ? iconWidth + iconGap + textWidth + iconGap + iconWidth : iconWidth + iconGap + textWidth;
+  if (contentMaxWidth && totalWidth > contentMaxWidth) {
+    var fitRatio = Math.max(0.9, contentMaxWidth / totalWidth);
+    iconFontSize = Math.max(tagHeightPx * 0.36, iconFontSize * fitRatio);
+    iconGap = Math.max(tagHeightPx * 0.03, iconGap * fitRatio);
+    ctx.font = "".concat(iconFontSize, "px ").concat(EMOJI_FONT_FAMILY);
+    rawIconWidth = ctx.measureText(iconGlyph).width;
+    iconWidth = Math.min(iconFontSize * 1.2, Math.max(iconFontSize * 0.68, rawIconWidth));
+    totalWidth = placement === 'both' ? iconWidth + iconGap + textWidth + iconGap + iconWidth : iconWidth + iconGap + textWidth;
+  }
+  var textCenter = centerX;
+  var leftIconCenter = null;
+  var rightIconCenter = null;
+  if (placement === 'left') {
+    var startX = centerX - totalWidth / 2;
+    leftIconCenter = startX + iconWidth / 2;
+    textCenter = startX + iconWidth + iconGap + textWidth / 2;
+  } else if (placement === 'right') {
+    var startXRight = centerX - totalWidth / 2;
+    textCenter = startXRight + textWidth / 2;
+    rightIconCenter = startXRight + textWidth + iconGap + iconWidth / 2;
+  } else if (placement === 'both') {
+    var startXBoth = centerX - totalWidth / 2;
+    leftIconCenter = startXBoth + iconWidth / 2;
+    textCenter = startXBoth + iconWidth + iconGap + textWidth / 2;
+    rightIconCenter = startXBoth + iconWidth + iconGap + textWidth + iconGap + iconWidth / 2;
+  }
+  ctx.fillStyle = color;
+  ctx.font = "bold ".concat(mainFontSize, "px sans-serif");
+  ctx.fillText(mainText, textCenter, centerY);
+  var iconY = centerY + tagHeightPx * 0.04;
+  if (leftIconCenter !== null) {
+    drawEmojiGlyph(ctx, iconGlyph, leftIconCenter, iconY, iconFontSize, 1);
+  }
+  if (rightIconCenter !== null) {
+    drawEmojiGlyph(ctx, iconGlyph, rightIconCenter, iconY, iconFontSize, 1);
+  }
+}
+
+// ========================================
+// 初期化
+// ========================================
+document.addEventListener('DOMContentLoaded', function () {
+  var zoomPreview = document.querySelector('.zoom-preview');
+  if (zoomPreview) {
+    zoomPreview.style.display = PERFORMANCE.zoomScale > 0 ? 'flex' : 'none';
+  }
+  loadSettings();
+  setupEventListeners();
+  updatePreview();
+  window.addEventListener('beforeunload', flushSettings);
+});
+
+// ========================================
+// イベントリスナー設定
+// ========================================
+function setupEventListeners() {
+  // 価格入力（数字のみ）
+  var priceInput = document.getElementById('price');
+  priceInput.addEventListener('input', function (e) {
+    var value = normalizeNumericInput(e.target.value);
+    applyNumericInputValue(e.target, value);
+    CONFIG.price = value;
+
+    // エラー表示
+    var errorEl = document.getElementById('priceError');
+    errorEl.classList.toggle('visible', value === '');
+    saveSettings();
+    updatePreview();
+  });
+
+  // 通貨ボタン
+  document.querySelectorAll('#currencyButtons .btn-option').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      document.querySelectorAll('#currencyButtons .btn-option').forEach(function (b) {
+        return b.classList.remove('active');
+      });
+      btn.classList.add('active');
+      var currency = btn.dataset.currency;
+      CONFIG.currencyPosition = btn.dataset.position;
+
+      // 自由入力の表示切替
+      var freeInput = document.getElementById('freeCurrencyInput');
+      if (currency === 'free') {
+        freeInput.classList.add('visible');
+        CONFIG.currency = CONFIG.freeCurrency || '';
+      } else {
+        freeInput.classList.remove('visible');
+        CONFIG.currency = currency;
+      }
+      saveSettings();
+      updatePreview();
+    });
+  });
+
+  // 自由通貨入力
+  document.getElementById('freeCurrency').addEventListener('input', function (e) {
+    CONFIG.freeCurrency = e.target.value;
+    CONFIG.currency = e.target.value;
+    saveSettings();
+    updatePreview();
+  });
+
+  // 商品名
+  document.getElementById('itemName').addEventListener('input', function (e) {
+    CONFIG.itemName = e.target.value;
+    saveSettings();
+    updatePreview();
+  });
+
+  // 補足
+  document.getElementById('note').addEventListener('input', function (e) {
+    CONFIG.note = e.target.value;
+    saveSettings();
+    updatePreview();
+  });
+
+  // 表示モード
+  document.querySelectorAll('#displayModes .btn-option').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      document.querySelectorAll('#displayModes .btn-option').forEach(function (b) {
+        return b.classList.remove('active');
+      });
+      btn.classList.add('active');
+      CONFIG.displayMode = btn.dataset.mode;
+      saveSettings();
+      updatePreview();
+    });
+  });
+
+  // アイコン
+  document.getElementById('icon').addEventListener('input', function (e) {
+    CONFIG.icon = e.target.value;
+    saveSettings();
+    updatePreview();
+  });
+
+  // アイコン配置
+  document.querySelectorAll('#iconPlacement .btn-option').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      document.querySelectorAll('#iconPlacement .btn-option').forEach(function (b) {
+        return b.classList.remove('active');
+      });
+      btn.classList.add('active');
+      CONFIG.iconPlacement = btn.dataset.placement;
+      saveSettings();
+      updatePreview();
+    });
+  });
+
+  // サイズプリセット
+  document.querySelectorAll('#sizePresets .size-preset').forEach(function (preset) {
+    preset.addEventListener('click', function () {
+      document.querySelectorAll('#sizePresets .size-preset').forEach(function (p) {
+        return p.classList.remove('active');
+      });
+      preset.classList.add('active');
+      CONFIG.tagSize = preset.dataset.size;
+      var customSize = document.getElementById('customSize');
+      if (preset.dataset.size === 'custom') {
+        customSize.classList.add('visible');
+        CONFIG.tagWidth = parseInt(document.getElementById('customWidth').value) || 40;
+        CONFIG.tagHeight = parseInt(document.getElementById('customHeight').value) || 15;
+      } else {
+        customSize.classList.remove('visible');
+        CONFIG.tagWidth = parseInt(preset.dataset.w);
+        CONFIG.tagHeight = parseInt(preset.dataset.h);
+      }
+      saveSettings();
+      updatePreview();
+    });
+  });
+
+  // カスタムサイズ入力
+  ['customWidth', 'customHeight'].forEach(function (id) {
+    document.getElementById(id).addEventListener('input', function () {
+      CONFIG.tagWidth = parseInt(document.getElementById('customWidth').value) || 40;
+      CONFIG.tagHeight = parseInt(document.getElementById('customHeight').value) || 15;
+      saveSettings();
+      updatePreview();
+    });
+  });
+
+  // 用紙ボタン
+  document.querySelectorAll('#paperButtons .btn-option').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      document.querySelectorAll('#paperButtons .btn-option').forEach(function (b) {
+        return b.classList.remove('active');
+      });
+      btn.classList.add('active');
+      CONFIG.paper = btn.dataset.paper;
+      var customPaper = document.getElementById('customPaper');
+      if (btn.dataset.paper === 'custom') {
+        customPaper.classList.add('visible');
+        CONFIG.paperWidth = parseInt(document.getElementById('customPaperWidth').value) || 210;
+        CONFIG.paperHeight = parseInt(document.getElementById('customPaperHeight').value) || 297;
+      } else {
+        customPaper.classList.remove('visible');
+        CONFIG.paperWidth = parseInt(btn.dataset.w);
+        CONFIG.paperHeight = parseInt(btn.dataset.h);
+      }
+      applyOrientation();
+      saveSettings();
+      updatePreview();
+    });
+  });
+
+  // カスタム用紙サイズ入力
+  ['customPaperWidth', 'customPaperHeight'].forEach(function (id) {
+    document.getElementById(id).addEventListener('input', function () {
+      CONFIG.paperWidth = parseInt(document.getElementById('customPaperWidth').value) || 210;
+      CONFIG.paperHeight = parseInt(document.getElementById('customPaperHeight').value) || 297;
+      applyOrientation();
+      saveSettings();
+      updatePreview();
+    });
+  });
+
+  // 向き
+  document.querySelectorAll('#orientationBtns .orientation-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      document.querySelectorAll('#orientationBtns .orientation-btn').forEach(function (b) {
+        return b.classList.remove('active');
+      });
+      btn.classList.add('active');
+      CONFIG.orientation = btn.dataset.orientation;
+      applyOrientation();
+      saveSettings();
+      updatePreview();
+    });
+  });
+
+  // カラー
+  document.querySelectorAll('#colorSwatches .color-swatch').forEach(function (swatch) {
+    swatch.addEventListener('click', function () {
+      document.querySelectorAll('#colorSwatches .color-swatch').forEach(function (s) {
+        return s.classList.remove('active');
+      });
+      swatch.classList.add('active');
+      CONFIG.color = swatch.dataset.color;
+      saveSettings();
+      updatePreview();
+    });
+  });
+
+  // テンプレート
+  document.querySelectorAll('#templateOptions .template-option').forEach(function (opt) {
+    opt.addEventListener('click', function () {
+      document.querySelectorAll('#templateOptions .template-option').forEach(function (o) {
+        return o.classList.remove('active');
+      });
+      opt.classList.add('active');
+      CONFIG.template = opt.dataset.template;
+      saveSettings();
+      updatePreview();
+    });
+  });
+
+  // 元値入力（値引き表示）
+  document.getElementById('originalPrice').addEventListener('input', function (e) {
+    var value = normalizeNumericInput(e.target.value);
+    applyNumericInputValue(e.target, value);
+    CONFIG.originalPrice = value;
+    saveSettings();
+    updatePreview();
+  });
+
+  // 税表示
+  document.querySelectorAll('#taxDisplay .btn-option').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      document.querySelectorAll('#taxDisplay .btn-option').forEach(function (b) {
+        return b.classList.remove('active');
+      });
+      btn.classList.add('active');
+      CONFIG.taxDisplay = btn.dataset.tax;
+      saveSettings();
+      updatePreview();
+    });
+  });
+
+  // 角丸
+  document.querySelectorAll('#cornerRadius .btn-option').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      document.querySelectorAll('#cornerRadius .btn-option').forEach(function (b) {
+        return b.classList.remove('active');
+      });
+      btn.classList.add('active');
+      CONFIG.cornerRadius = btn.dataset.radius;
+      saveSettings();
+      updatePreview();
+    });
+  });
+
+  // グラデーション
+  document.getElementById('useGradient').addEventListener('change', function (e) {
+    CONFIG.useGradient = e.target.checked;
+    saveSettings();
+    updatePreview();
+  });
+
+  // 季節テンプレート
+  document.querySelectorAll('#seasonTheme .btn-option').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      document.querySelectorAll('#seasonTheme .btn-option').forEach(function (b) {
+        return b.classList.remove('active');
+      });
+      btn.classList.add('active');
+      CONFIG.seasonTheme = btn.dataset.season;
+      saveSettings();
+      updatePreview();
+    });
+  });
+
+  // 背景パターン
+  document.querySelectorAll('#bgPattern .btn-option').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      document.querySelectorAll('#bgPattern .btn-option').forEach(function (b) {
+        return b.classList.remove('active');
+      });
+      btn.classList.add('active');
+      CONFIG.bgPattern = btn.dataset.pattern;
+      saveSettings();
+      updatePreview();
+    });
+  });
+
+  // オプションチェックボックス
+  ['cutLine', 'cropMark', 'testScale'].forEach(function (id) {
+    document.getElementById(id).addEventListener('change', function (e) {
+      CONFIG[id] = e.target.checked;
+      saveSettings();
+      updatePreview();
+    });
+  });
+
+  // 間隔選択
+  document.querySelectorAll('#gapPresets .gap-preset').forEach(function (preset) {
+    preset.addEventListener('click', function () {
+      document.querySelectorAll('#gapPresets .gap-preset').forEach(function (p) {
+        return p.classList.remove('active');
+      });
+      preset.classList.add('active');
+      CONFIG.gap = parseInt(preset.dataset.gap);
+      saveSettings();
+      updatePreview();
+    });
+  });
+}
+
+// ========================================
+// 用紙向きの適用
+// ========================================
+function applyOrientation() {
+  // 用紙サイズはすでにセットされているので、向きに応じて幅高さを決定
+  // 縦の場合：幅 < 高さ、横の場合：幅 > 高さ
+  var baseW = CONFIG.paperWidth;
+  var baseH = CONFIG.paperHeight;
+  if (CONFIG.orientation === 'portrait') {
+    CONFIG.paperWidth = Math.min(baseW, baseH);
+    CONFIG.paperHeight = Math.max(baseW, baseH);
+  } else {
+    CONFIG.paperWidth = Math.max(baseW, baseH);
+    CONFIG.paperHeight = Math.min(baseW, baseH);
+  }
+}
+
+// ========================================
+// プレビュー更新
+// ========================================
+function updatePreview() {
+  if (previewRenderQueued) return;
+  previewRenderQueued = true;
+  schedulePreviewFrame(function () {
+    previewRenderQueued = false;
+    renderPreview();
+  });
+}
+function renderPreview() {
+  var canvas = document.getElementById('previewCanvas');
+  var ctx = canvas.getContext('2d');
+
+  // キャンバスサイズ設定（プレビュー用にスケール）
+  var scale = PERFORMANCE.previewScale;
+  var displayScale = PERFORMANCE.displayScale;
+  var paperW = CONFIG.paperWidth;
+  var paperH = CONFIG.paperHeight;
+  canvas.width = paperW * scale;
+  canvas.height = paperH * scale;
+  canvas.style.width = "".concat(paperW * displayScale, "px");
+  canvas.style.height = "".concat(paperH * displayScale, "px");
+  ctx.imageSmoothingEnabled = !LEGACY_MODE;
+
+  // 背景（白紙）
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // レイアウト計算
+  var margin = CONFIG.margin * scale;
+  var gap = CONFIG.gap * scale;
+  var tagW = CONFIG.tagWidth * scale;
+  var tagH = CONFIG.tagHeight * scale;
+  var availableW = canvas.width - margin * 2;
+  var availableH = canvas.height - margin * 2;
+  var cols = Math.max(1, Math.floor((availableW + gap) / (tagW + gap)));
+  var rows = Math.max(1, Math.floor((availableH + gap) / (tagH + gap)));
+
+  // 中央揃えのオフセット
+  var totalTagsW = cols * tagW + (cols - 1) * gap;
+  var totalTagsH = rows * tagH + (rows - 1) * gap;
+  var offsetX = margin + (availableW - totalTagsW) / 2;
+  var offsetY = margin + (availableH - totalTagsH) / 2;
+
+  // タグを描画
+  var count = 0;
+  for (var row = 0; row < rows; row++) {
+    for (var col = 0; col < cols; col++) {
+      var x = offsetX + col * (tagW + gap);
+      var y = offsetY + row * (tagH + gap);
+      drawTag(ctx, x, y, tagW, tagH, scale);
+      count++;
+    }
+  }
+
+  // タグ数表示
+  document.getElementById('tagCount').textContent = "".concat(count, "\u679A");
+
+  // 拡大プレビュー描画（老眼対応）
+  updateZoomPreview();
+
+  // 切り線
+  if (CONFIG.cutLine) {
+    ctx.strokeStyle = '#ccc';
+    ctx.lineWidth = 0.5 * scale;
+    ctx.setLineDash([2 * scale, 2 * scale]);
+    for (var _row = 0; _row < rows; _row++) {
+      for (var _col = 0; _col < cols; _col++) {
+        var _x = offsetX + _col * (tagW + gap);
+        var _y = offsetY + _row * (tagH + gap);
+        ctx.strokeRect(_x, _y, tagW, tagH);
+      }
+    }
+    ctx.setLineDash([]);
+  }
+
+  // トンボ
+  if (CONFIG.cropMark) {
+    drawCropMarks(ctx, offsetX, offsetY, totalTagsW, totalTagsH, scale);
+  }
+
+  // 1cmスケール
+  if (CONFIG.testScale) {
+    drawTestScale(ctx, canvas.width, canvas.height, scale);
+  }
+}
+
+// ========================================
+// タグ描画
+// ========================================
+function drawTag(ctx, x, y, w, h, scale) {
+  // 色の決定（季節テーマ優先）
+  var color;
+  if (CONFIG.seasonTheme !== 'none' && SEASON_THEMES[CONFIG.seasonTheme].colors) {
+    color = _objectSpread(_objectSpread({}, SEASON_THEMES[CONFIG.seasonTheme].colors), {}, {
+      text: '#333'
+    });
+  } else {
+    color = COLORS[CONFIG.color];
+  }
+  var padding = 2 * scale;
+  var tagHeightMm = h / scale;
+
+  // 角丸の半径
+  var radius = 0;
+  if (CONFIG.cornerRadius === 'soft') {
+    radius = Math.min(w, h) * 0.1;
+  } else if (CONFIG.cornerRadius === 'round') {
+    radius = Math.min(w, h) * 0.3;
+  }
+
+  // --- 1. クリッピング領域の設定 ---
+  ctx.save(); // 状態保存
+  ctx.beginPath();
+  if (radius > 0) {
+    roundRect(ctx, x, y, w, h, radius);
+  } else {
+    ctx.rect(x, y, w, h);
+  }
+  ctx.clip(); // これ以降の描画は値札の形に切り取られる
+
+  // --- 2. 背景描画 ---
+
+  // グラデーション or 単色
+  if (CONFIG.useGradient && color.bg2) {
+    var gradient = ctx.createLinearGradient(x, y, x, y + h);
+    gradient.addColorStop(0, color.bg2);
+    gradient.addColorStop(1, color.bg);
+    ctx.fillStyle = gradient;
+    ctx.fillRect(x, y, w, h); // clipされているのでrectでOK
+  } else {
+    ctx.fillStyle = color.bg;
+    ctx.fillRect(x, y, w, h);
+  }
+
+  // 背景パターン描画（クリッピング内）
+  if (CONFIG.bgPattern !== 'none') {
+    drawBgPattern(ctx, x, y, w, h, scale, color.border);
+  }
+
+  // 季節テーマの絵文字（クリッピング内）
+  if (CONFIG.seasonTheme !== 'none' && SEASON_THEMES[CONFIG.seasonTheme].emoji) {
+    var emoji = getSeasonThemeSymbol(SEASON_THEMES[CONFIG.seasonTheme].emoji);
+    var emojiSize = clampNumber(h * (tagHeightMm <= 10 ? 0.42 : 0.46), h * 0.34, h * 0.62);
+    var seasonLeftPad = Math.max(0.9 * scale, emojiSize * 0.18);
+    var seasonTopPad = Math.max(0.4 * scale, emojiSize * 0.04);
+    ctx.fillStyle = color.border;
+    drawEmojiGlyph(ctx, emoji, x + seasonLeftPad + emojiSize / 2, y + seasonTopPad + emojiSize / 2, emojiSize, LEGACY_MODE ? 0.94 : 0.86);
+  }
+
+  // テンプレート装飾（クリッピング内）
+  if (CONFIG.template === 'band') {
+    // 下部帯（とけ帯）
+    var bandH = h * 0.25;
+    ctx.fillStyle = color.border;
+    ctx.globalAlpha = 0.3;
+    ctx.fillRect(x, y + h - bandH, w, bandH);
+    ctx.globalAlpha = 1;
+
+    // 波形装飾
+    ctx.beginPath();
+    ctx.moveTo(x, y + h - bandH);
+    for (var i = 0; i <= w; i += 8 * scale) {
+      var wave = Math.sin(i / (4 * scale)) * 3 * scale;
+      ctx.lineTo(x + i, y + h - bandH + wave);
+    }
+    ctx.strokeStyle = color.border;
+    ctx.lineWidth = 1 * scale;
+    ctx.stroke();
+  } else if (CONFIG.template === 'point') {
+    // ワンポイント（右上に小さな丸）
+    var dotR = Math.min(w, h) * 0.1;
+    ctx.beginPath();
+    ctx.arc(x + w - dotR * 2, y + dotR * 2, dotR, 0, Math.PI * 2);
+    ctx.fillStyle = color.border;
+    ctx.globalAlpha = 0.5;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+  ctx.restore(); // クリッピング解除
+
+  // --- 3. 枠線描画（クリッピング外で綺麗に描く）---
+  ctx.strokeStyle = color.border;
+  ctx.lineWidth = 1 * scale;
+  ctx.beginPath();
+  if (radius > 0) {
+    roundRect(ctx, x, y, w, h, radius);
+  } else {
+    ctx.rect(x, y, w, h);
+  }
+  ctx.stroke();
+
+  // --- 4. テキスト・アイコン描画 ---
+  // テキスト系も一応クリッピングした方が安全だが、
+  // 文字欠けを防ぐため、枠線の上に描画する現在の順序を維持する
+  // もし「配置アイコン」もはみ出るなら、テキスト描画ブロック全体をクリッピング内に入れることも検討
+
+  // テキスト描画
+  var textContent = getDisplayText();
+  if (!CONFIG.price && CONFIG.displayMode.includes('price')) {
+    // 価格未入力
+    ctx.fillStyle = '#999';
+    ctx.font = "".concat(8 * scale, "px sans-serif");
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('価格を入れてね', x + w / 2, y + h / 2);
+    return;
+  }
+  var mainText = textContent.main;
+  var iconGlyph = pickFirstDisplayGlyph(CONFIG.icon);
+  var iconSlots = getIconSlotCount(iconGlyph);
+  var contentMaxWidth = Math.max(10 * scale, w - padding * 4.5);
+  var mainFontSize = calculateFontSize(ctx, mainText, contentMaxWidth, h * 0.6, scale);
+  if (iconSlots > 0) {
+    var iconEstimate = estimateIconFontSize(mainFontSize, h);
+    var gapEstimate = estimateIconGap(mainFontSize, h);
+    var reservedWidth = iconSlots * iconEstimate * 0.9 + gapEstimate * (iconSlots === 2 ? 2 : 1);
+    var reducedMainWidth = Math.max(8 * scale, contentMaxWidth - reservedWidth);
+    mainFontSize = calculateFontSize(ctx, mainText, reducedMainWidth, h * 0.6, scale);
+  }
+  ctx.fillStyle = color.text;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  // 値引き表示がある場合
+  if (CONFIG.originalPrice && CONFIG.displayMode.includes('price')) {
+    var smallFontSize = mainFontSize * 0.4;
+    var originalText = formatOriginalPrice();
+
+    // 元値（取り消し線）
+    ctx.font = "".concat(smallFontSize, "px sans-serif");
+    ctx.fillStyle = '#999';
+    var origY = y + h * 0.25;
+    ctx.fillText(originalText, x + w / 2, origY);
+
+    // 取り消し線
+    var origWidth = ctx.measureText(originalText).width;
+    ctx.strokeStyle = '#ff4444';
+    ctx.lineWidth = 1 * scale;
+    ctx.beginPath();
+    ctx.moveTo(x + w / 2 - origWidth / 2, origY);
+    ctx.lineTo(x + w / 2 + origWidth / 2, origY);
+    ctx.stroke();
+
+    // 新価格
+    ctx.fillStyle = '#ff4444'; // 赤で目立たせる
+    drawMainTextWithIcons(ctx, mainText, x + w / 2, y + h * 0.65, mainFontSize, scale, '#ff4444', iconGlyph, h, contentMaxWidth);
+  } else if (textContent.sub) {
+    // サブテキストあり（商品名や補足）
+    var subFontSize = mainFontSize * 0.5;
+
+    // サブテキスト（上）
+    ctx.font = "".concat(subFontSize, "px sans-serif");
+    ctx.fillText(textContent.sub, x + w / 2, y + h * 0.25);
+
+    // メインテキスト（下）
+    drawMainTextWithIcons(ctx, mainText, x + w / 2, y + h * 0.65, mainFontSize, scale, color.text, iconGlyph, h, contentMaxWidth);
+  } else {
+    // メインテキストのみ
+    drawMainTextWithIcons(ctx, mainText, x + w / 2, y + h / 2, mainFontSize, scale, color.text, iconGlyph, h, contentMaxWidth);
+  }
+}
+
+// 角丸矩形描画ヘルパー
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+// 背景パターン描画
+function drawBgPattern(ctx, x, y, w, h, scale, patternColor) {
+  ctx.save();
+  ctx.globalAlpha = 0.15;
+  ctx.fillStyle = patternColor;
+  ctx.strokeStyle = patternColor;
+  ctx.lineWidth = 0.5 * scale;
+  if (CONFIG.bgPattern === 'dots') {
+    // 水玉
+    var dotR = 1.5 * scale;
+    var spacing = 6 * scale;
+    for (var dy = spacing / 2; dy < h; dy += spacing) {
+      for (var dx = spacing / 2; dx < w; dx += spacing) {
+        ctx.beginPath();
+        ctx.arc(x + dx, y + dy, dotR, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  } else if (CONFIG.bgPattern === 'stripes') {
+    // ストライプ（斜め）
+    var _spacing = 5 * scale;
+    for (var i = -h; i < w + h; i += _spacing) {
+      ctx.beginPath();
+      ctx.moveTo(x + i, y);
+      ctx.lineTo(x + i + h, y + h);
+      ctx.stroke();
+    }
+  } else if (CONFIG.bgPattern === 'check') {
+    // チェック
+    var size = 4 * scale;
+    for (var _dy = 0; _dy < h; _dy += size * 2) {
+      for (var _dx = 0; _dx < w; _dx += size * 2) {
+        ctx.fillRect(x + _dx, y + _dy, size, size);
+        ctx.fillRect(x + _dx + size, y + _dy + size, size, size);
+      }
+    }
+  }
+  ctx.restore();
+}
+
+// 元値フォーマット（値引き表示用）
+function formatOriginalPrice() {
+  if (!CONFIG.originalPrice) return '';
+  var price = CONFIG.originalPrice;
+  var currency = CONFIG.currency;
+  if (!currency) return price;
+  if (CONFIG.currencyPosition === 'before') {
+    return currency + price;
+  } else if (CONFIG.currencyPosition === 'after') {
+    return price + currency;
+  }
+  return price;
+}
+
+// ========================================
+// 価格フォーマット
+// ========================================
+function formatPrice() {
+  if (!CONFIG.price) return '';
+  var price = CONFIG.price;
+  var currency = CONFIG.currency;
+  var result = '';
+  if (!currency) {
+    result = price;
+  } else if (CONFIG.currencyPosition === 'before') {
+    result = currency + price;
+  } else if (CONFIG.currencyPosition === 'after') {
+    result = price + currency;
+  } else {
+    result = price;
+  }
+
+  // 税表示
+  if (CONFIG.taxDisplay === 'included') {
+    result += '(税込)';
+  } else if (CONFIG.taxDisplay === 'excluded') {
+    result += '+税';
+  }
+  return result;
+}
+
+// ========================================
+// 表示テキスト取得
+// ========================================
+function getDisplayText() {
+  var mode = CONFIG.displayMode;
+  var price = formatPrice();
+  var name = CONFIG.itemName;
+  var note = CONFIG.note;
+  switch (mode) {
+    case 'price':
+      return {
+        main: price,
+        sub: ''
+      };
+    case 'name':
+      return {
+        main: name || '商品名',
+        sub: ''
+      };
+    case 'price-name':
+      return {
+        main: price,
+        sub: name
+      };
+    case 'price-note':
+      return {
+        main: price,
+        sub: note
+      };
+    case 'name-note':
+      return {
+        main: name || '商品名',
+        sub: note
+      };
+    case 'all':
+      return {
+        main: price,
+        sub: "".concat(name, " ").concat(note).trim()
+      };
+    default:
+      return {
+        main: price,
+        sub: ''
+      };
+  }
+}
+
+// ========================================
+// フォントサイズ計算
+// ========================================
+function calculateFontSize(ctx, text, maxWidth, maxHeight, scale) {
+  if (!text) return 10 * scale;
+  var fontSize = Math.min(maxHeight * 0.8, 30 * scale);
+  var minFontSize = Math.min(fontSize, Math.max(2.8 * scale, maxHeight * 0.22));
+  var step = Math.max(scale * 0.4, 0.5);
+  ctx.font = "bold ".concat(fontSize, "px sans-serif");
+  while (ctx.measureText(text).width > maxWidth && fontSize > minFontSize) {
+    fontSize -= step;
+    ctx.font = "bold ".concat(fontSize, "px sans-serif");
+  }
+  return Math.max(fontSize, minFontSize);
+}
+
+// ========================================
+// トンボ描画
+// ========================================
+function drawCropMarks(ctx, x, y, w, h, scale) {
+  var len = 5 * scale;
+  var offset = 3 * scale;
+  ctx.strokeStyle = '#333';
+  ctx.lineWidth = 0.5 * scale;
+
+  // 四隅
+  var corners = [[x - offset, y - offset], [x + w + offset, y - offset], [x - offset, y + h + offset], [x + w + offset, y + h + offset]];
+  corners.forEach(function (_ref, i) {
+    var _ref2 = _slicedToArray(_ref, 2),
+      cx = _ref2[0],
+      cy = _ref2[1];
+    var xDir = i % 2 === 0 ? -1 : 1;
+    var yDir = i < 2 ? -1 : 1;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + len * xDir, cy);
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx, cy + len * yDir);
+    ctx.stroke();
+  });
+}
+
+// ========================================
+// 1cmスケール描画
+// ========================================
+function drawTestScale(ctx, canvasW, canvasH, scale) {
+  var x = canvasW - 15 * scale;
+  var y = canvasH - 15 * scale;
+  var len = 10 * scale; // 1cm = 10mm
+
+  ctx.strokeStyle = '#333';
+  ctx.lineWidth = 1 * scale;
+
+  // 横線
+  ctx.beginPath();
+  ctx.moveTo(x - len, y);
+  ctx.lineTo(x, y);
+  ctx.stroke();
+
+  // 端のマーク
+  ctx.beginPath();
+  ctx.moveTo(x - len, y - 2 * scale);
+  ctx.lineTo(x - len, y + 2 * scale);
+  ctx.moveTo(x, y - 2 * scale);
+  ctx.lineTo(x, y + 2 * scale);
+  ctx.stroke();
+
+  // ラベル
+  ctx.font = "".concat(4 * scale, "px sans-serif");
+  ctx.fillStyle = '#333';
+  ctx.textAlign = 'center';
+  ctx.fillText('1cm', x - len / 2, y - 4 * scale);
+}
+
+// ========================================
+// 拡大プレビュー描画（老眼対応）
+// ========================================
+function updateZoomPreview() {
+  if (PERFORMANCE.zoomScale <= 0 || PERFORMANCE.zoomRenderScale <= 0) return;
+  var canvas = document.getElementById('zoomCanvas');
+  if (!canvas) return;
+  var ctx = canvas.getContext('2d');
+  if (!ctx) return;
+
+  // 拡大率（3倍）
+  var zoomScale = PERFORMANCE.zoomScale;
+  var scale = PERFORMANCE.zoomRenderScale;
+  var tagW = CONFIG.tagWidth * scale;
+  var tagH = CONFIG.tagHeight * scale;
+  canvas.width = tagW;
+  canvas.height = tagH;
+  canvas.style.width = "".concat(CONFIG.tagWidth * zoomScale, "px");
+  canvas.style.height = "".concat(CONFIG.tagHeight * zoomScale, "px");
+
+  // タグ描画
+  drawTag(ctx, 0, 0, tagW, tagH, scale);
+}
+
+// ========================================
+// PDF書き出し
+// ========================================
+function exportPDF() {
+  if (!CONFIG.price) {
+    alert('価格を入力してください');
+    return;
+  }
+  var jsPDF = window.jspdf.jsPDF;
+
+  // 用紙サイズ（mm）
+  var paperW = CONFIG.paperWidth;
+  var paperH = CONFIG.paperHeight;
+
+  // 高解像度Canvas（300dpi相当）
+  var dpi = PERFORMANCE.pdfDpi;
+  var mmToPx = dpi / 25.4;
+  var canvasW = Math.round(paperW * mmToPx);
+  var canvasH = Math.round(paperH * mmToPx);
+
+  // オフスクリーンCanvasを作成
+  var offscreen = document.createElement('canvas');
+  offscreen.width = canvasW;
+  offscreen.height = canvasH;
+  var ctx = offscreen.getContext('2d');
+
+  // 背景（白紙）
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, canvasW, canvasH);
+
+  // スケール（mm→px）
+  var scale = mmToPx;
+
+  // レイアウト計算
+  var margin = CONFIG.margin * scale;
+  var gap = CONFIG.gap * scale;
+  var tagW = CONFIG.tagWidth * scale;
+  var tagH = CONFIG.tagHeight * scale;
+  var availableW = canvasW - margin * 2;
+  var availableH = canvasH - margin * 2;
+  var cols = Math.floor((availableW + gap) / (tagW + gap));
+  var rows = Math.floor((availableH + gap) / (tagH + gap));
+
+  // 中央揃えのオフセット
+  var totalTagsW = cols * tagW + (cols - 1) * gap;
+  var totalTagsH = rows * tagH + (rows - 1) * gap;
+  var offsetX = margin + (availableW - totalTagsW) / 2;
+  var offsetY = margin + (availableH - totalTagsH) / 2;
+
+  // 化石iPadや極小ラベル大量配置では、タグを1回だけ描いて複製する
+  var useTagStamp = LEGACY_MODE || cols * rows > 180;
+  var tagStamp = null;
+  if (useTagStamp) {
+    var stampW = Math.max(1, Math.ceil(tagW));
+    var stampH = Math.max(1, Math.ceil(tagH));
+    tagStamp = document.createElement('canvas');
+    tagStamp.width = stampW;
+    tagStamp.height = stampH;
+    var stampCtx = tagStamp.getContext('2d');
+    if (stampCtx) {
+      drawTag(stampCtx, 0, 0, stampW, stampH, scale);
+    } else {
+      tagStamp = null;
+    }
+  }
+
+  // タグを描画
+  for (var row = 0; row < rows; row++) {
+    for (var col = 0; col < cols; col++) {
+      var x = offsetX + col * (tagW + gap);
+      var y = offsetY + row * (tagH + gap);
+      if (tagStamp) {
+        ctx.drawImage(tagStamp, x, y, tagW, tagH);
+      } else {
+        drawTag(ctx, x, y, tagW, tagH, scale);
+      }
+    }
+  }
+
+  // 切り線
+  if (CONFIG.cutLine) {
+    ctx.strokeStyle = '#ccc';
+    ctx.lineWidth = 0.5 * scale;
+    ctx.setLineDash([2 * scale, 2 * scale]);
+    for (var _row2 = 0; _row2 < rows; _row2++) {
+      for (var _col2 = 0; _col2 < cols; _col2++) {
+        var _x2 = offsetX + _col2 * (tagW + gap);
+        var _y2 = offsetY + _row2 * (tagH + gap);
+        ctx.strokeRect(_x2, _y2, tagW, tagH);
+      }
+    }
+    ctx.setLineDash([]);
+  }
+
+  // トンボ
+  if (CONFIG.cropMark) {
+    drawCropMarks(ctx, offsetX, offsetY, totalTagsW, totalTagsH, scale);
+  }
+
+  // 1cmスケール
+  if (CONFIG.testScale) {
+    drawTestScale(ctx, canvasW, canvasH, scale);
+  }
+
+  // 注意文（Canvas上に描画）
+  ctx.font = "".concat(3 * scale, "px sans-serif");
+  ctx.fillStyle = '#999';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'bottom';
+  ctx.fillText('※100%（実寸）で印刷してください', canvasW / 2, canvasH - 2 * scale);
+
+  // Canvas → 画像 → PDF
+  var imageType = 'JPEG';
+  var imageMime = 'image/jpeg';
+  var jpegQuality = LEGACY_MODE ? Math.min(0.82, PERFORMANCE.imageQuality) : PERFORMANCE.imageQuality;
+  var imgData = offscreen.toDataURL(imageMime, jpegQuality);
+  var pdf = new jsPDF({
+    orientation: CONFIG.orientation === 'landscape' ? 'l' : 'p',
+    unit: 'mm',
+    format: [paperW, paperH]
+  });
+  pdf.addImage(imgData, imageType, 0, 0, paperW, paperH, undefined, LEGACY_MODE ? 'FAST' : undefined);
+  savePdfWithFallback(pdf, '値札.pdf');
+}
+function openPdfWithBlob(pdf) {
+  try {
+    var blob = pdf.output('blob');
+    var blobUrl = URL.createObjectURL(blob);
+    var popup = window.open(blobUrl, '_blank');
+    if (!popup) {
+      window.location.href = blobUrl;
+    }
+    setTimeout(function () {
+      URL.revokeObjectURL(blobUrl);
+    }, 120000);
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+function openPdfWithDataUri(pdf) {
+  try {
+    var dataUri = pdf.output('datauristring');
+    var popup = window.open(dataUri, '_blank');
+    if (!popup) {
+      window.location.href = dataUri;
+    }
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+function savePdfWithFallback(pdf, filename) {
+  if (LEGACY_MODE) {
+    try {
+      pdf.save(filename);
+      return;
+    } catch (e0) {}
+    if (openPdfWithBlob(pdf)) {
+      return;
+    }
+    if (openPdfWithDataUri(pdf)) {
+      return;
+    }
+    alert('PDFの保存に失敗しました。スクリーンショット保存をお試しください。');
+    return;
+  }
+  if (IS_IOS_DEVICE && openPdfWithBlob(pdf)) {
+    return;
+  }
+  try {
+    pdf.save(filename);
+    return;
+  } catch (e) {}
+  if (openPdfWithBlob(pdf)) {
+    return;
+  }
+  if (openPdfWithDataUri(pdf)) {
+    return;
+  }
+  alert('PDFの保存に失敗しました。スクリーンショット保存をお試しください。');
+}
+
+// ========================================
+// 設定保存/読み込み
+// ========================================
+function saveSettings() {
+  if (settingsSaveTimer) {
+    clearTimeout(settingsSaveTimer);
+  }
+  settingsSaveTimer = setTimeout(function () {
+    localStorage.setItem('toketeru-settings', JSON.stringify(CONFIG));
+    settingsSaveTimer = null;
+  }, LEGACY_MODE ? 140 : 70);
+}
+function flushSettings() {
+  if (settingsSaveTimer) {
+    clearTimeout(settingsSaveTimer);
+    settingsSaveTimer = null;
+  }
+  localStorage.setItem('toketeru-settings', JSON.stringify(CONFIG));
+}
+function loadSettings() {
+  var saved = localStorage.getItem('toketeru-settings');
+  if (saved) {
+    var parsed = JSON.parse(saved);
+    Object.assign(CONFIG, parsed);
+
+    // UIに反映
+    document.getElementById('price').value = CONFIG.price;
+    document.getElementById('originalPrice').value = CONFIG.originalPrice || '';
+    document.getElementById('itemName').value = CONFIG.itemName;
+    document.getElementById('note').value = CONFIG.note;
+    document.getElementById('icon').value = CONFIG.icon;
+    document.getElementById('freeCurrency').value = CONFIG.freeCurrency;
+    document.getElementById('customWidth').value = CONFIG.tagWidth;
+    document.getElementById('customHeight').value = CONFIG.tagHeight;
+    document.getElementById('customPaperWidth').value = CONFIG.paperWidth;
+    document.getElementById('customPaperHeight').value = CONFIG.paperHeight;
+    document.getElementById('cutLine').checked = CONFIG.cutLine;
+    document.getElementById('cropMark').checked = CONFIG.cropMark;
+    document.getElementById('testScale').checked = CONFIG.testScale;
+    document.getElementById('useGradient').checked = CONFIG.useGradient || false;
+
+    // アクティブ状態を設定
+    setActiveButton('#currencyButtons', "[data-currency=\"".concat(CONFIG.currency === CONFIG.freeCurrency ? 'free' : CONFIG.currency, "\"]"));
+    setActiveButton('#displayModes', "[data-mode=\"".concat(CONFIG.displayMode, "\"]"));
+    setActiveButton('#iconPlacement', "[data-placement=\"".concat(CONFIG.iconPlacement, "\"]"));
+    setActiveButton('#sizePresets', "[data-size=\"".concat(CONFIG.tagSize, "\"]"));
+    setActiveButton('#paperButtons', "[data-paper=\"".concat(CONFIG.paper, "\"]"));
+    setActiveButton('#orientationBtns', "[data-orientation=\"".concat(CONFIG.orientation, "\"]"));
+    setActiveButton('#colorSwatches', "[data-color=\"".concat(CONFIG.color, "\"]"));
+    setActiveButton('#templateOptions', "[data-template=\"".concat(CONFIG.template, "\"]"));
+    setActiveButton('#gapPresets', "[data-gap=\"".concat(CONFIG.gap, "\"]"));
+    setActiveButton('#taxDisplay', "[data-tax=\"".concat(CONFIG.taxDisplay || 'none', "\"]"));
+    setActiveButton('#cornerRadius', "[data-radius=\"".concat(CONFIG.cornerRadius || 'none', "\"]"));
+    setActiveButton('#seasonTheme', "[data-season=\"".concat(CONFIG.seasonTheme || 'none', "\"]"));
+    setActiveButton('#bgPattern', "[data-pattern=\"".concat(CONFIG.bgPattern || 'none', "\"]"));
+
+    // カスタムサイズ表示
+    if (CONFIG.tagSize === 'custom') {
+      document.getElementById('customSize').classList.add('visible');
+    }
+    if (CONFIG.paper === 'custom') {
+      document.getElementById('customPaper').classList.add('visible');
+    }
+    if (CONFIG.currency === CONFIG.freeCurrency && CONFIG.freeCurrency) {
+      document.getElementById('freeCurrencyInput').classList.add('visible');
+    }
+  }
+}
+function setActiveButton(container, selector) {
+  var el = document.querySelector("".concat(container, " ").concat(selector));
+  if (el) {
+    document.querySelectorAll("".concat(container, " .btn-option, ").concat(container, " .size-preset, ").concat(container, " .color-swatch, ").concat(container, " .template-option, ").concat(container, " .orientation-btn, ").concat(container, " .gap-preset")).forEach(function (b) {
+      return b.classList.remove('active');
+    });
+    el.classList.add('active');
+  }
+}
+
+// ========================================
+// 設定リセット
+// ========================================
+function resetSettings() {
+  if (confirm('設定をリセットしますか？')) {
+    localStorage.removeItem('toketeru-settings');
+    location.reload();
+  }
+}
+    </script>
+</body>
+
+</html>
