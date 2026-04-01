@@ -3829,3 +3829,800 @@
       var zs = PERFORMANCE.zoomScale;
       var sc = PERFORMANCE.zoomRenderScale;
       var tagW = preset.labelW * sc;
+      var tagH = preset.labelH * sc;
+      canvas.width = tagW;
+      canvas.height = tagH;
+      canvas.style.width = (preset.labelW * zs) + 'px';
+      canvas.style.height = (preset.labelH * zs) + 'px';
+      var nums = generateBNumbers();
+      drawBNumberTag(ctx, 0, 0, tagW, tagH, sc, nums.length > 0 ? nums[0] : 'B-001');
+    }
+
+    function getJsPdfCtor() {
+      if (!window.jspdf || !window.jspdf.jsPDF) {
+        return null;
+      }
+      return window.jspdf.jsPDF;
+    }
+    function isPdfLibraryAvailable() {
+      return !!getJsPdfCtor();
+    }
+    function buildPrintPageHtml(imageUrls, paperW, paperH, title) {
+      var html = [
+        '<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8">',
+        '<meta name="viewport" content="width=device-width,initial-scale=1">',
+        '<title>', title, '</title>',
+        '<style>',
+        'html,body{margin:0;padding:0;background:#f5f5f5;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;}',
+        '.print-note{padding:12px 16px;font-size:14px;color:#555;text-align:center;}',
+        '.sheet{width:', paperW, 'mm;min-height:', paperH, 'mm;margin:12px auto;background:#fff;box-shadow:0 2px 12px rgba(0,0,0,.12);page-break-after:always;}',
+        '.sheet:last-child{page-break-after:auto;}',
+        '.sheet img{display:block;width:100%;height:auto;}',
+        '@media print{body{background:#fff;}.print-note{display:none;}.sheet{margin:0;box-shadow:none;}}',
+        '</style></head><body>',
+        '<div class="print-note">この画面から印刷や共有でPDF保存できるよ。倍率は100%にしてね。</div>'
+      ];
+      imageUrls.forEach(function (url) {
+        html.push('<div class="sheet"><img src="', url, '" alt="print sheet"></div>');
+      });
+      html.push('</body></html>');
+      return html.join('');
+    }
+    function openPrintFallback(imageUrls, paperW, paperH, title) {
+      if (!imageUrls || imageUrls.length === 0) {
+        return false;
+      }
+      var popup = window.open('', '_blank');
+      if (!popup) {
+        alert('印刷画面を開けませんでした。ポップアップ許可を確認してください。');
+        return false;
+      }
+      popup.document.open();
+      popup.document.write(buildPrintPageHtml(imageUrls, paperW, paperH, title));
+      popup.document.close();
+      try {
+        popup.focus();
+      } catch (e) { }
+      return true;
+    }
+    function exportBNumPDF() {
+      var jsPDF = getJsPdfCtor();
+      var sheetId = CONFIG.bNumSheet || '73200';
+      var preset = AONE_PRESETS[sheetId];
+      if (!preset) return;
+      var nums = generateBNumbers();
+      if (nums.length === 0) { alert('生成枚数を1以上にしてください'); return; }
+      var paperW = preset.paperW; var paperH = preset.paperH;
+      var dpi = PERFORMANCE.pdfDpi; var mmToPx = dpi / 25.4;
+      var canvasW = Math.round(paperW * mmToPx); var canvasH = Math.round(paperH * mmToPx);
+      var scale = mmToPx;
+      var oX = preset.marginLeft * scale; var oY = preset.marginTop * scale;
+      var lW = preset.labelW * scale; var lH = preset.labelH * scale;
+      var gX = preset.gapX * scale; var gY = preset.gapY * scale;
+      var labelsPerPage = preset.cols * preset.rows;
+      var totalPages = Math.ceil(nums.length / labelsPerPage);
+      var pdf = jsPDF ? new jsPDF({ orientation: 'p', unit: 'mm', format: [paperW, paperH] }) : null;
+      var imageUrls = [];
+      var numIdx = 0;
+      for (var page = 0; page < totalPages; page++) {
+        if (pdf && page > 0) pdf.addPage([paperW, paperH], 'p');
+        var off = document.createElement('canvas');
+        off.width = canvasW; off.height = canvasH;
+        var ctx = off.getContext('2d');
+        ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvasW, canvasH);
+        for (var row = 0; row < preset.rows && numIdx < nums.length; row++) {
+          for (var col = 0; col < preset.cols && numIdx < nums.length; col++) {
+            drawBNumberTag(ctx, oX + col * (lW + gX), oY + row * (lH + gY), lW, lH, scale, nums[numIdx]);
+            numIdx++;
+          }
+        }
+        ctx.font = (3 * scale) + 'px sans-serif'; ctx.fillStyle = '#999';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+        ctx.fillText('※100%（実寸）で印刷してください', canvasW / 2, canvasH - 2 * scale);
+        var pageImage = off.toDataURL('image/png');
+        imageUrls.push(pageImage);
+        if (pdf) {
+          pdf.addImage(pageImage, 'PNG', 0, 0, paperW, paperH);
+        }
+      }
+      if (pdf) {
+        savePdfWithFallback(pdf, '管理番号_' + CONFIG.bNumPrefix + '.pdf');
+        return;
+      }
+      if (openPrintFallback(imageUrls, paperW, paperH, '管理番号ラベル')) {
+        return;
+      }
+      alert('PDF機能の読み込みに失敗しました。通信がない場合は共有メニューから印刷を試してね。');
+    }
+
+    // ========================================
+    // PDF書き出し
+    // ========================================
+    function exportPDF() {
+      // モード分岐
+      if (CONFIG.appMode === 'aone') {
+        exportAonePDF();
+        return;
+      }
+      if (CONFIG.appMode === 'bnum') {
+        exportBNumPDF();
+        return;
+      }
+      if (!CONFIG.price) {
+        alert('価格を入力してください');
+        return;
+      }
+      var jsPDF = getJsPdfCtor();
+
+      // 用紙サイズ（mm）
+      var paperW = CONFIG.paperWidth;
+      var paperH = CONFIG.paperHeight;
+
+      // 高解像度Canvas（300dpi相当）
+      var dpi = PERFORMANCE.pdfDpi;
+      var mmToPx = dpi / 25.4;
+      var canvasW = Math.round(paperW * mmToPx);
+      var canvasH = Math.round(paperH * mmToPx);
+
+      // オフスクリーンCanvasを作成
+      var offscreen = document.createElement('canvas');
+      offscreen.width = canvasW;
+      offscreen.height = canvasH;
+      var ctx = offscreen.getContext('2d');
+
+      // 背景（白紙）
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, canvasW, canvasH);
+
+      // スケール（mm→px）
+      var scale = mmToPx;
+
+      // レイアウト計算
+      var margin = CONFIG.margin * scale;
+      var gap = CONFIG.gap * scale;
+      var tagW = CONFIG.tagWidth * scale;
+      var tagH = CONFIG.tagHeight * scale;
+      var availableW = canvasW - margin * 2;
+      var availableH = canvasH - margin * 2;
+      var cols = Math.floor((availableW + gap) / (tagW + gap));
+      var rows = Math.floor((availableH + gap) / (tagH + gap));
+
+      // 中央揃えのオフセット
+      var totalTagsW = cols * tagW + (cols - 1) * gap;
+      var totalTagsH = rows * tagH + (rows - 1) * gap;
+      var offsetX = margin + (availableW - totalTagsW) / 2;
+      var offsetY = margin + (availableH - totalTagsH) / 2;
+
+      // 化石iPadや極小ラベル大量配置では、タグを1回だけ描いて複製する
+      var useTagStamp = LEGACY_MODE || cols * rows > 180;
+      var tagStamp = null;
+      if (useTagStamp) {
+        var stampW = Math.max(1, Math.ceil(tagW));
+        var stampH = Math.max(1, Math.ceil(tagH));
+        tagStamp = document.createElement('canvas');
+        tagStamp.width = stampW;
+        tagStamp.height = stampH;
+        var stampCtx = tagStamp.getContext('2d');
+        if (stampCtx) {
+          drawTag(stampCtx, 0, 0, stampW, stampH, scale);
+        } else {
+          tagStamp = null;
+        }
+      }
+
+      // タグを描画
+      for (var row = 0; row < rows; row++) {
+        for (var col = 0; col < cols; col++) {
+          var x = offsetX + col * (tagW + gap);
+          var y = offsetY + row * (tagH + gap);
+          if (tagStamp) {
+            ctx.drawImage(tagStamp, x, y, tagW, tagH);
+          } else {
+            drawTag(ctx, x, y, tagW, tagH, scale);
+          }
+        }
+      }
+
+      // 切り線
+      if (CONFIG.cutLine) {
+        ctx.strokeStyle = '#ccc';
+        ctx.lineWidth = 0.5 * scale;
+        ctx.setLineDash([2 * scale, 2 * scale]);
+        for (var _row2 = 0; _row2 < rows; _row2++) {
+          for (var _col2 = 0; _col2 < cols; _col2++) {
+            var _x2 = offsetX + _col2 * (tagW + gap);
+            var _y2 = offsetY + _row2 * (tagH + gap);
+            ctx.strokeRect(_x2, _y2, tagW, tagH);
+          }
+        }
+        ctx.setLineDash([]);
+      }
+
+      // トンボ
+      if (CONFIG.cropMark) {
+        drawCropMarks(ctx, offsetX, offsetY, totalTagsW, totalTagsH, scale);
+      }
+
+      // 1cmスケール
+      if (CONFIG.testScale) {
+        drawTestScale(ctx, canvasW, canvasH, scale);
+      }
+
+      // 注意文（Canvas上に描画）
+      ctx.font = "".concat(3 * scale, "px sans-serif");
+      ctx.fillStyle = '#999';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText('※100%（実寸）で印刷してください', canvasW / 2, canvasH - 2 * scale);
+
+      // Canvas → 画像 → PDF
+      var usePng = document.getElementById('highQualityPdf') && document.getElementById('highQualityPdf').checked;
+      var imageType = usePng ? 'PNG' : 'JPEG';
+      var imageMime = usePng ? 'image/png' : 'image/jpeg';
+      var jpegQuality = LEGACY_MODE ? Math.min(0.82, PERFORMANCE.imageQuality) : PERFORMANCE.imageQuality;
+      var imgData = offscreen.toDataURL(imageMime, usePng ? undefined : jpegQuality);
+      if (jsPDF) {
+        var pdf = new jsPDF({
+          orientation: CONFIG.orientation === 'landscape' ? 'l' : 'p',
+          unit: 'mm',
+          format: [paperW, paperH]
+        });
+        pdf.addImage(imgData, imageType, 0, 0, paperW, paperH, undefined, LEGACY_MODE ? 'FAST' : undefined);
+        savePdfWithFallback(pdf, '値札.pdf');
+        return;
+      }
+      if (openPrintFallback([offscreen.toDataURL('image/png')], paperW, paperH, '値札')) {
+        return;
+      }
+      alert('PDF機能の読み込みに失敗しました。通信がない場合は共有メニューから印刷を試してね。');
+    }
+    function openPdfWithBlob(pdf) {
+      try {
+        var blob = pdf.output('blob');
+        var blobUrl = URL.createObjectURL(blob);
+        var popup = window.open(blobUrl, '_blank');
+        if (!popup) {
+          window.location.href = blobUrl;
+        }
+        setTimeout(function () {
+          URL.revokeObjectURL(blobUrl);
+        }, 120000);
+        return true;
+      } catch (e) {
+        return false;
+      }
+    }
+    function openPdfWithDataUri(pdf) {
+      try {
+        var dataUri = pdf.output('datauristring');
+        var popup = window.open(dataUri, '_blank');
+        if (!popup) {
+          window.location.href = dataUri;
+        }
+        return true;
+      } catch (e) {
+        return false;
+      }
+    }
+    function savePdfWithFallback(pdf, filename) {
+      if (LEGACY_MODE) {
+        try {
+          pdf.save(filename);
+          return;
+        } catch (e0) { }
+        if (openPdfWithBlob(pdf)) {
+          return;
+        }
+        if (openPdfWithDataUri(pdf)) {
+          return;
+        }
+        alert('PDFの保存に失敗しました。スクリーンショット保存をお試しください。');
+        return;
+      }
+      if (IS_IOS_DEVICE && openPdfWithBlob(pdf)) {
+        return;
+      }
+      try {
+        pdf.save(filename);
+        return;
+      } catch (e) { }
+      if (openPdfWithBlob(pdf)) {
+        return;
+      }
+      if (openPdfWithDataUri(pdf)) {
+        return;
+      }
+      alert('PDFの保存に失敗しました。スクリーンショット保存をお試しください。');
+    }
+
+    // ========================================
+    // 設定保存/読み込み
+    // ========================================
+    // ========================================
+    // A-ONE PDF出力
+    // ========================================
+    function exportTestPDF() {
+      var jsPDF = getJsPdfCtor();
+      var sheetId = '31555';
+      var offsetX = 0;
+      var offsetY = 0;
+      if (CONFIG.appMode === 'aone') {
+        sheetId = CONFIG.aoneSheet || '31555';
+        offsetX = parseFloat(CONFIG.aoneOffsetX) || 0;
+        offsetY = parseFloat(CONFIG.aoneOffsetY) || 0;
+      } else if (CONFIG.appMode === 'bnum') {
+        sheetId = CONFIG.bNumSheet || '73200';
+        offsetX = parseFloat(CONFIG.bNumOffsetX) || 0;
+        offsetY = parseFloat(CONFIG.bNumOffsetY) || 0;
+      } else {
+        alert('このモードではテスト印刷はできません。');
+        return;
+      }
+      var preset = AONE_PRESETS[sheetId];
+      if (!preset) return;
+
+      var paperW = preset.paperW;
+      var paperH = preset.paperH;
+      if (jsPDF) {
+        // jsPDFでmm単位で直接A4を作成
+        var pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: [paperW, paperH] });
+
+        var oX = preset.marginLeft + offsetX;
+        var oY = preset.marginTop + offsetY;
+        var lW = preset.labelW;
+        var lH = preset.labelH;
+        var gX = preset.gapX;
+        var gY = preset.gapY;
+
+        pdf.setDrawColor(200, 200, 200); // 薄灰
+        pdf.setLineWidth(0.3);
+        pdf.setFontSize(8);
+        pdf.setTextColor(150, 150, 150);
+
+        for (var row = 0; row < preset.rows; row++) {
+          for (var col = 0; col < preset.cols; col++) {
+            var x = oX + col * (lW + gX);
+            var y = oY + row * (lH + gY);
+            // 枠線
+            pdf.rect(x, y, lW, lH);
+
+            // 十字マーク
+            var cx = x + lW / 2;
+            var cy = y + lH / 2;
+            pdf.setLineWidth(0.1);
+            pdf.line(cx - 2, cy, cx + 2, cy); // 横
+            pdf.line(cx, cy - 2, cx, cy + 2); // 縦
+
+            // R1C1
+            var text = 'R' + (row + 1) + 'C' + (col + 1);
+            pdf.text(text, cx, cy + 3.5, { align: 'center' });
+          }
+        }
+
+        // 注意書き
+        pdf.setFontSize(10);
+        pdf.text('※倍率100%（実際のサイズ）で印刷してください', paperW / 2, paperH - 10, { align: 'center' });
+
+        savePdfWithFallback(pdf, 'テスト印刷_' + sheetId + '.pdf');
+        return;
+      }
+
+      var dpi = 96;
+      var mmToPx = dpi / 25.4;
+      var canvasW = Math.round(paperW * mmToPx);
+      var canvasH = Math.round(paperH * mmToPx);
+      var offscreen = document.createElement('canvas');
+      offscreen.width = canvasW;
+      offscreen.height = canvasH;
+      var ctx = offscreen.getContext('2d');
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, canvasW, canvasH);
+
+      var scale = mmToPx;
+      var pxOffsetX = (preset.marginLeft + offsetX) * scale;
+      var pxOffsetY = (preset.marginTop + offsetY) * scale;
+      var pxLabelW = preset.labelW * scale;
+      var pxLabelH = preset.labelH * scale;
+      var pxGapX = preset.gapX * scale;
+      var pxGapY = preset.gapY * scale;
+
+      ctx.strokeStyle = '#c8c8c8';
+      ctx.fillStyle = '#999';
+      ctx.lineWidth = Math.max(1, 0.3 * scale);
+      ctx.font = "".concat(Math.max(10, 8 * scale), "px sans-serif");
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+
+      for (var testRow = 0; testRow < preset.rows; testRow++) {
+        for (var testCol = 0; testCol < preset.cols; testCol++) {
+          var testX = pxOffsetX + testCol * (pxLabelW + pxGapX);
+          var testY = pxOffsetY + testRow * (pxLabelH + pxGapY);
+          ctx.strokeRect(testX, testY, pxLabelW, pxLabelH);
+          var testCx = testX + pxLabelW / 2;
+          var testCy = testY + pxLabelH / 2;
+          ctx.beginPath();
+          ctx.moveTo(testCx - 2 * scale, testCy);
+          ctx.lineTo(testCx + 2 * scale, testCy);
+          ctx.moveTo(testCx, testCy - 2 * scale);
+          ctx.lineTo(testCx, testCy + 2 * scale);
+          ctx.stroke();
+          ctx.fillText('R' + (testRow + 1) + 'C' + (testCol + 1), testCx, testCy + 4 * scale);
+        }
+      }
+
+      ctx.font = "".concat(Math.max(12, 10 * scale), "px sans-serif");
+      ctx.textBaseline = 'alphabetic';
+      ctx.fillText('※倍率100%（実際のサイズ）で印刷してください', canvasW / 2, canvasH - 10 * scale);
+      if (openPrintFallback([offscreen.toDataURL('image/png')], paperW, paperH, 'テスト印刷')) {
+        return;
+      }
+      alert('印刷画面を開けませんでした。ポップアップ許可を確認してください。');
+    }
+
+    function exportAonePDF() {
+      if (!CONFIG.price && displayModeHasPrice()) {
+        alert('価格を入力してください');
+        return;
+      }
+      var jsPDF = getJsPdfCtor();
+      var preset = AONE_PRESETS[CONFIG.aoneSheet];
+      if (!preset) return;
+
+      var paperW = preset.paperW;
+      var paperH = preset.paperH;
+
+      // 高解像度Canvas（300dpi相当）
+      var dpi = PERFORMANCE.pdfDpi;
+      var mmToPx = dpi / 25.4;
+      var canvasW = Math.round(paperW * mmToPx);
+      var canvasH = Math.round(paperH * mmToPx);
+
+      var offscreen = document.createElement('canvas');
+      offscreen.width = canvasW;
+      offscreen.height = canvasH;
+      var ctx = offscreen.getContext('2d');
+
+      // 背景（白紙）
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, canvasW, canvasH);
+
+      var scale = mmToPx;
+
+      // A-ONE固定座標計算
+      var adjX = (CONFIG.aoneOffsetX || 0) * scale;
+      var adjY = (CONFIG.aoneOffsetY || 0) * scale;
+      var offsetX = preset.marginLeft * scale + adjX;
+      var offsetY = preset.marginTop * scale + adjY;
+      var labelW = preset.labelW * scale;
+      var labelH = preset.labelH * scale;
+      var gapX = preset.gapX * scale;
+      var gapY = preset.gapY * scale;
+      var cols = preset.cols;
+      var rows = preset.rows;
+
+      // タグスタンプ（パフォーマンス最適化）
+      var useTagStamp = LEGACY_MODE || cols * rows > 80;
+      var tagStamp = null;
+      if (useTagStamp) {
+        var stampW = Math.max(1, Math.ceil(labelW));
+        var stampH = Math.max(1, Math.ceil(labelH));
+        tagStamp = document.createElement('canvas');
+        tagStamp.width = stampW;
+        tagStamp.height = stampH;
+        var stampCtx = tagStamp.getContext('2d');
+        if (stampCtx) {
+          drawTag(stampCtx, 0, 0, stampW, stampH, scale);
+        } else {
+          tagStamp = null;
+        }
+      }
+
+      // タグ描画
+      for (var row = 0; row < rows; row++) {
+        for (var col = 0; col < cols; col++) {
+          var x = offsetX + col * (labelW + gapX);
+          var y = offsetY + row * (labelH + gapY);
+          if (tagStamp) {
+            ctx.drawImage(tagStamp, x, y, labelW, labelH);
+          } else {
+            drawTag(ctx, x, y, labelW, labelH, scale);
+          }
+        }
+      }
+
+      // 注意文
+      ctx.font = "".concat(3 * scale, "px sans-serif");
+      ctx.fillStyle = '#999';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText('※100%（実寸）で印刷してください', canvasW / 2, canvasH - 2 * scale);
+
+      // PNG形式で出力（文字の滲み防止）
+      var imgData = offscreen.toDataURL('image/png');
+      if (jsPDF) {
+        var pdf = new jsPDF({
+          orientation: 'p',
+          unit: 'mm',
+          format: [paperW, paperH]
+        });
+        pdf.addImage(imgData, 'PNG', 0, 0, paperW, paperH);
+        savePdfWithFallback(pdf, '値札_AONE_' + CONFIG.aoneSheet + '.pdf');
+        return;
+      }
+      if (openPrintFallback([imgData], paperW, paperH, 'A-ONEラベル')) {
+        return;
+      }
+      alert('PDF機能の読み込みに失敗しました。通信がない場合は共有メニューから印刷を試してね。');
+    }
+
+    function saveSettings() {
+      if (settingsSaveTimer) {
+        clearTimeout(settingsSaveTimer);
+      }
+      settingsSaveTimer = setTimeout(function () {
+        try {
+          localStorage.setItem('toketeru-settings', JSON.stringify(buildPersistedConfig()));
+        } catch (e) { }
+        settingsSaveTimer = null;
+      }, LEGACY_MODE ? 140 : 70);
+    }
+    function flushSettings() {
+      if (settingsSaveTimer) {
+        clearTimeout(settingsSaveTimer);
+        settingsSaveTimer = null;
+      }
+      try {
+        localStorage.setItem('toketeru-settings', JSON.stringify(buildPersistedConfig()));
+      } catch (e) { }
+    }
+    function loadSettings() {
+      var saved = localStorage.getItem('toketeru-settings');
+      if (saved) {
+        try {
+          var parsed = JSON.parse(saved);
+          if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+            Object.keys(CONFIG).forEach(function (key) {
+              if (!NON_PERSISTED_CONFIG_KEYS[key] && Object.prototype.hasOwnProperty.call(parsed, key)) {
+                CONFIG[key] = parsed[key];
+              }
+            });
+          }
+        } catch (e) {
+          localStorage.removeItem('toketeru-settings');
+        }
+      }
+      sanitizeConfigInPlace();
+
+      // UIに反映
+      document.getElementById('price').value = CONFIG.price;
+      document.getElementById('originalPrice').value = CONFIG.originalPrice || '';
+      document.getElementById('itemName').value = CONFIG.itemName;
+      document.getElementById('note').value = CONFIG.note;
+      document.getElementById('icon').value = CONFIG.icon;
+      document.getElementById('freeCurrency').value = CONFIG.freeCurrency;
+      document.getElementById('customWidth').value = CONFIG.tagWidth;
+      document.getElementById('customHeight').value = CONFIG.tagHeight;
+      document.getElementById('customPaperWidth').value = CONFIG.paperWidth;
+      document.getElementById('customPaperHeight').value = CONFIG.paperHeight;
+      document.getElementById('cutLine').checked = CONFIG.cutLine;
+      document.getElementById('cropMark').checked = CONFIG.cropMark;
+      document.getElementById('testScale').checked = CONFIG.testScale;
+      // アクティブ状態を設定
+      setActiveButton('#currencyButtons', "[data-currency=\"".concat(CONFIG.freeCurrency && CONFIG.currency === CONFIG.freeCurrency ? 'free' : CONFIG.currency, "\"]"));
+      setActiveButton('#displayModes', "[data-mode=\"".concat(CONFIG.displayMode, "\"]"));
+      setActiveButton('#iconPlacement', "[data-placement=\"".concat(CONFIG.iconPlacement, "\"]"));
+      setActiveButton('#sizePresets', "[data-size=\"".concat(CONFIG.tagSize, "\"]"));
+      setActiveButton('#paperButtons', "[data-paper=\"".concat(CONFIG.paper, "\"]"));
+      setActiveButton('#orientationBtns', "[data-orientation=\"".concat(CONFIG.orientation, "\"]"));
+      setActiveButton('#colorSwatches', "[data-color=\"".concat(CONFIG.color, "\"]"));
+      setActiveButton('#templateOptions', "[data-template=\"".concat(CONFIG.template, "\"]"));
+      setActiveButton('#gapPresets', "[data-gap=\"".concat(CONFIG.gap, "\"]"));
+      setActiveButton('#taxDisplay', "[data-tax=\"".concat(CONFIG.taxDisplay || 'none', "\"]"));
+      setActiveButton('#cornerRadius', "[data-radius=\"".concat(CONFIG.cornerRadius || 'none', "\"]"));
+      setActiveButton('#gradientMode', "[data-gradient=\"".concat(CONFIG.useGradient ? 'on' : 'off', "\"]"));
+      setActiveButton('#seasonTheme', "[data-season=\"".concat(CONFIG.seasonTheme || 'none', "\"]"));
+      setActiveButton('#bgPattern', "[data-pattern=\"".concat(CONFIG.bgPattern || 'none', "\"]"));
+
+      // 管理番号設定復元
+      document.getElementById('bNumPrefix').value = CONFIG.bNumPrefix || 'B';
+      document.getElementById('bNumStart').value = CONFIG.bNumStart || 1;
+      document.getElementById('bNumCount').value = CONFIG.bNumCount || 200;
+      document.getElementById('bNumGuide').checked = CONFIG.bNumGuide || false;
+      document.getElementById('bNumOffsetX').value = CONFIG.bNumOffsetX || 0;
+      document.getElementById('bNumOffsetY').value = CONFIG.bNumOffsetY || 0;
+      setActiveButton('#bNumSepButtons', '[data-sep="' + (CONFIG.bNumSeparator != null ? CONFIG.bNumSeparator : '-') + '"]');
+      setActiveButton('#bNumPadButtons', '[data-pad="' + (CONFIG.bNumZeroPad || 3) + '"]');
+      setActiveButton('#bNumSheetSelect', '[data-sheet="' + (CONFIG.bNumSheet || '73200') + '"]');
+
+      // A-ONE設定復元
+      setActiveButton('#modeSelector', "[data-mode=\"".concat(CONFIG.appMode || 'normal', "\"]"));
+      setActiveButton('#aoneSheetSelect', "[data-sheet=\"".concat(CONFIG.aoneSheet || '31555', "\"]"));
+      document.getElementById('aoneGuide').checked = CONFIG.aoneGuide || false;
+      document.getElementById('aoneOffsetX').value = CONFIG.aoneOffsetX || 0;
+      document.getElementById('aoneOffsetY').value = CONFIG.aoneOffsetY || 0;
+
+      // カスタムサイズ表示
+      if (CONFIG.tagSize === 'custom') {
+        document.getElementById('customSize').classList.add('visible');
+      } else {
+        document.getElementById('customSize').classList.remove('visible');
+      }
+      if (CONFIG.paper === 'custom') {
+        document.getElementById('customPaper').classList.add('visible');
+      } else {
+        document.getElementById('customPaper').classList.remove('visible');
+      }
+      if (CONFIG.currency === CONFIG.freeCurrency && CONFIG.freeCurrency) {
+        document.getElementById('freeCurrencyInput').classList.add('visible');
+      } else {
+        document.getElementById('freeCurrencyInput').classList.remove('visible');
+      }
+
+      // モードUI復元
+      updateModeUI();
+
+      // 旧データをサニタイズ済み形式へ移行
+      if (saved !== null) {
+        try {
+          localStorage.setItem('toketeru-settings', JSON.stringify(buildPersistedConfig()));
+        } catch (e) { }
+      }
+      refreshGuideUI();
+    }
+
+    function refreshGuideUI() {
+      updateZoomPreviewVisibility();
+      updateQuickGuide();
+      updateExportState();
+      updateSectionSummaryStatus();
+      updateLegacyNote();
+    }
+
+    function normalizeDetailTitle(text) {
+      return String(text || '').replace(/\s+/g, ' ').trim();
+    }
+
+    function shouldOpenDetailForMode(title, mode) {
+      if (mode === 'bnum') {
+        return title.indexOf('管理番号設定') !== -1 || title.indexOf('ラベルシート') !== -1;
+      }
+      if (mode === 'aone') {
+        return title.indexOf('価格設定') !== -1 || title.indexOf('ラベルシート') !== -1;
+      }
+      return title.indexOf('価格設定') !== -1 || title.indexOf('サイズ・用紙') !== -1;
+    }
+
+    function applyRecommendedDetailsState() {
+      document.querySelectorAll('.settings details').forEach(function (detail) {
+        var heading = detail.querySelector('summary h2');
+        var title = normalizeDetailTitle(heading ? heading.textContent : '');
+        detail.open = UI_STATE.expandAllDetails || shouldOpenDetailForMode(title, CONFIG.appMode);
+        applyDetailOpenState(detail);
+      });
+      var toggleBtn = document.getElementById('toggleAdvancedBtn');
+      if (toggleBtn) {
+        toggleBtn.textContent = UI_STATE.expandAllDetails ? '詳細設定をたたむ' : '詳細設定を全部開く';
+      }
+    }
+
+    function updateQuickGuide() {
+      var step2Title = document.getElementById('guideStep2Title');
+      var step2Text = document.getElementById('guideStep2Text');
+      var step3Text = document.getElementById('guideStep3Text');
+      var status = document.getElementById('guideStatus');
+      if (!step2Title || !step2Text || !step3Text || !status) {
+        return;
+      }
+
+      var mode = CONFIG.appMode;
+      var ready;
+      var currentStep = 3;
+      var exportAction = isPdfLibraryAvailable() ? '右上のボタンを押すと、PDFを書き出せるよ。' : '右上のボタンを押すと、印刷画面から共有や保存に進めるよ。';
+
+      if (mode === 'bnum') {
+        ready = CONFIG.bNumCount > 0;
+        currentStep = ready ? 3 : 2;
+        step2Title.textContent = '番号を確認する';
+        step2Text.textContent = '開始番号と枚数だけ見ればOKだよ。初期値のままでも使えるよ。';
+        step3Text.textContent = exportAction;
+        status.textContent = ready ? '番号設定はそのまま使えるよ。右上のPDF書き出しで完了だよ。' : '開始番号と枚数を見たら、そのまま書き出せるよ。';
+      } else if (mode === 'aone') {
+        ready = !!CONFIG.price;
+        currentStep = ready ? 3 : 2;
+        step2Title.textContent = '価格を入れる';
+        step2Text.textContent = 'A-ONEラベルでも、まずは価格だけ入れれば動くよ。';
+        step3Text.textContent = exportAction;
+        status.textContent = ready ? '価格が入ったよ。右上のPDF書き出しでラベルを作れるよ。' : '次は価格を入れるだけでOKだよ。';
+      } else {
+        ready = !!CONFIG.price;
+        currentStep = ready ? 3 : 2;
+        step2Title.textContent = '価格を入れる';
+        step2Text.textContent = '必須なのはここだけだよ。ほかは後からでも大丈夫だよ。';
+        step3Text.textContent = exportAction;
+        status.textContent = ready ? '価格が入ったよ。右上のPDF書き出しで完成だよ。' : '次は価格を入れるだけでOKだよ。';
+      }
+
+      for (var step = 1; step <= 3; step++) {
+        var el = document.getElementById('guideStep' + step);
+        if (!el) continue;
+        el.classList.remove('is-current');
+        el.classList.remove('is-done');
+        if (step < currentStep) {
+          el.classList.add('is-done');
+        } else if (step === currentStep) {
+          el.classList.add('is-current');
+        }
+      }
+    }
+
+    function updateExportState() {
+      var button = document.getElementById('exportButton');
+      var buttonLabel = document.getElementById('exportButtonLabel');
+      var help = document.getElementById('exportHelp');
+      if (!button || !buttonLabel || !help) {
+        return;
+      }
+
+      var ready = CONFIG.appMode === 'bnum' ? CONFIG.bNumCount > 0 : !!CONFIG.price;
+      var pdfReady = isPdfLibraryAvailable();
+      button.disabled = !ready;
+      button.setAttribute('aria-disabled', ready ? 'false' : 'true');
+      buttonLabel.textContent = pdfReady ? 'PDF書き出し' : '印刷画面を開く';
+
+      if (!ready) {
+        help.textContent = CONFIG.appMode === 'bnum' ? '番号設定を確認すると書き出せるよ' : 'まず価格を入れると書き出せるよ';
+        return;
+      }
+
+      if (!pdfReady) {
+        help.textContent = '印刷画面を開いて、共有や保存に進めるよ';
+      } else if (CONFIG.appMode === 'aone') {
+        help.textContent = 'いまのA-ONE設定でPDFを書き出せるよ';
+      } else if (CONFIG.appMode === 'bnum') {
+        help.textContent = 'いまの管理番号ラベルをPDFで書き出せるよ';
+      } else {
+        help.textContent = 'いまの値札をPDFで書き出せるよ';
+      }
+    }
+    function updateLegacyNote() {
+      var legacyNote = document.getElementById('legacyNote');
+      if (!legacyNote) {
+        return;
+      }
+      if (LEGACY_MODE) {
+        legacyNote.classList.add('visible');
+        legacyNote.textContent = isPdfLibraryAvailable() ? 'iPad軽量モードだよ。拡大プレビューは必要な時だけ右のボタンで開けるようにしているよ。' : 'iPad軽量モードだよ。拡大プレビューは右のボタンで開けるよ。通信がないときはPDFの代わりに印刷画面を開くから、共有から保存してね。';
+        return;
+      }
+      if (!isPdfLibraryAvailable()) {
+        legacyNote.classList.add('visible');
+        legacyNote.textContent = '通信がないためPDF機能は使えないよ。右上のボタンから印刷画面を開いて共有や保存ができるよ。';
+        return;
+      }
+      legacyNote.classList.remove('visible');
+      legacyNote.textContent = '';
+    }
+
+    function setActiveButton(container, selector) {
+      var el = document.querySelector("".concat(container, " ").concat(selector));
+      if (el) {
+        document.querySelectorAll("".concat(container, " .btn-option, ").concat(container, " .size-preset, ").concat(container, " .color-swatch, ").concat(container, " .template-option, ").concat(container, " .orientation-btn, ").concat(container, " .gap-preset, ").concat(container, " .mode-btn, ").concat(container, " .aone-sheet-btn")).forEach(function (b) {
+          return b.classList.remove('active');
+        });
+        el.classList.add('active');
+      }
+    }
+
+    // ========================================
+    // 設定リセット
+    // ========================================
+    function resetSettings() {
+      if (confirm('設定をリセットしますか？')) {
+        localStorage.removeItem('toketeru-settings');
+        location.reload();
+      }
+    }
+  </script>
+</body>
+
+</html>
